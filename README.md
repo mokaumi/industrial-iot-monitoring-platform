@@ -97,11 +97,13 @@ jsPDF
 html2canvas
 
 
-Installation
+Installation:
+
 
 Clone project
-git clone <your-repo-url>
-cd iot_monitoring_platform
+
+git clone https://github.com/mokaumi/industrial-iot-monitoring-platform.git
+cd industrial-iot-monitoring-platform
 
 
 Create virtual environment
