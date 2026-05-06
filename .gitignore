@@ -1,0 +1,6 @@
+lora-venv/
+__pycache__/
+*.pyc
+*.db-journal
+*.log
+openvpn-status.log

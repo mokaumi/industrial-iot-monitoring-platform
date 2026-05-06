@@ -1,0 +1,2603 @@
+<html>
+<head>
+<title>IoT Dashboard</title>
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+    background: #0f172a;
+    color: #e2e8f0;
+    font-family: Arial, sans-serif;
+}
+
+.header {
+    padding: 15px;
+    background: #1e293b;
+    border-bottom: 2px solid #334155;
+}
+
+.card {
+    background: #1e293b;
+    padding: 15px;
+    margin: 10px;
+    border-radius: 10px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
+
+.status-online {
+    color: #22c55e;
+}
+
+.status-offline {
+    color: #ef4444;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    color: #e2e8f0;
+}
+
+th, td {
+    padding: 8px;
+    text-align: center;
+}
+
+tr.divider td {
+    border-bottom: 2px solid #334155;
+}
+
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.metric-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.metric-title {
+    font-size: 14px;
+    color: #94a3b8;
+    margin-bottom: 8px;
+}
+
+.metric-value {
+    font-size: 28px;
+    font-weight: bold;
+    color: #f8fafc;
+}
+
+.unit {
+    font-size: 14px;
+    font-weight: normal;
+    color: #cbd5e1;
+    margin-left: 4px;
+}
+
+@media (max-width: 1024px) {
+    .cards-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .cards-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+.metric-card.normal {
+    border-left: 5px solid #22c55e;
+}
+
+.metric-card.warning {
+    border-left: 5px solid #f59e0b;
+}
+
+.metric-card.danger {
+    border-left: 5px solid #ef4444;
+}
+
+.cards-grid.offline .metric-card {
+    opacity: 0.4;
+    border-left: 5px solid #64748b; /* gray */
+}
+
+.summary-bar {
+    display: flex;
+    gap: 25px;
+    margin-bottom: 15px;
+    padding: 10px 15px;
+    background: #1e293b;
+    border-radius: 10px;
+    border: 1px solid #334155;
+}
+
+.summary-item {
+    font-size: 14px;
+    color: #cbd5e1;
+}
+
+.summary-item span {
+    font-weight: bold;
+    color: #f8fafc;
+}
+
+.status-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin: 0 6px;
+}
+
+.online-dot {
+    background: lime;
+    box-shadow: 0 0 10px lime;
+    animation: pulseGreen 1.5s infinite;
+}
+
+.offline-dot {
+    background: red;
+    box-shadow: 0 0 10px red;
+    animation: blinkRed 1s infinite;
+}
+
+@keyframes pulseGreen {
+    0% { transform: scale(1); opacity: 0.7; }
+    50% { transform: scale(1.4); opacity: 1; }
+    100% { transform: scale(1); opacity: 0.7; }
+}
+
+@keyframes blinkRed {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; }
+}
+
+.alert-danger {
+    animation: alertBlink 1s infinite;
+}
+
+@keyframes alertBlink {
+    0%, 100% { border-color: red; box-shadow: 0 0 8px red; }
+    50% { border-color: #7f1d1d; box-shadow: none; }
+}
+
+
+.metric-card.normal {
+    border-left: 5px solid #22c55e;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.25);
+}
+
+.metric-card.warning {
+    border-left: 5px solid #f59e0b;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+}
+
+.metric-card.danger {
+    border-left: 5px solid #ef4444;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.35);
+}
+
+.cards-grid.offline .metric-card {
+    opacity: 0.45;
+    filter: grayscale(60%);
+}
+
+.site-summary {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+
+
+
+.site-summary div {
+    background: linear-gradient(145deg, #1e293b, #0f172a);
+    border: 1px solid #334155;
+    padding: 12px 20px;
+    border-radius: 14px;
+    font-weight: bold;
+    font-size: 18px;
+    min-width: 150px;
+    box-shadow: 0 0 12px rgba(0,0,0,0.4);
+    transition: 0.3s;
+}
+
+.site-summary div:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0 20px rgba(34,197,94,0.4);
+}
+
+
+.selector-bar {
+    background: rgba(30,41,59,0.9);
+    padding: 14px;
+    border-radius: 14px;
+    margin-bottom: 20px;
+    box-shadow: inset 0 0 10px rgba(255,255,255,0.03);
+}
+
+#toastContainer {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+}
+
+.toast {
+    background: #1e293b;
+    color: white;
+    padding: 14px 18px;
+    margin-top: 10px;
+    border-left: 5px solid red;
+    border-radius: 10px;
+    min-width: 260px;
+    box-shadow: 0 0 12px rgba(0,0,0,0.4);
+    animation: slideIn 0.4s ease;
+}
+
+.toast.success {
+    border-left-color: lime;
+}
+
+.toast.warning {
+    border-left-color: orange;
+}
+
+.toast.danger {
+    border-left-color: red;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity:0; }
+    to { transform: translateX(0); opacity:1; }
+}
+
+
+
+.sparkline{
+    width:100%;
+    height:22px;
+    margin-top:8px;
+    opacity:0.9;
+}
+
+
+.badge {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.normal-badge {
+    background: rgba(34,197,94,0.15);
+    color: #22c55e;
+    border: 1px solid #22c55e;
+}
+
+.warning-badge {
+    background: rgba(245,158,11,0.15);
+    color: #f59e0b;
+    border: 1px solid #f59e0b;
+}
+
+.danger-badge {
+    background: rgba(239,68,68,0.15);
+    color: #ef4444;
+    border: 1px solid #ef4444;
+}
+
+
+.kpi-sites{
+    box-shadow: 0 0 14px rgba(59,130,246,0.25);
+}
+
+.kpi-devices{
+    box-shadow: 0 0 14px rgba(168,85,247,0.25);
+}
+
+.kpi-online{
+    box-shadow: 0 0 14px rgba(34,197,94,0.35);
+}
+
+.kpi-offline{
+    box-shadow: 0 0 14px rgba(239,68,68,0.35);
+}
+
+
+.dashboard-title{
+    font-size: 42px;
+    font-weight: 800;
+    color: white;
+    text-shadow: 0 0 12px rgba(59,130,246,0.35);
+    margin-bottom: 18px;
+    letter-spacing: 1px;
+}
+
+
+.selector-bar{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    flex-wrap:wrap;
+    background: rgba(30,41,59,0.9);
+    border:1px solid #334155;
+    border-radius:14px;
+    padding:14px 18px;
+    margin-bottom:22px;
+    box-shadow: 0 0 18px rgba(0,0,0,0.25);
+}
+
+.selector-bar label{
+    font-size:16px;
+    font-weight:600;
+    color:#cbd5e1;
+}
+
+.selector-bar select{
+    background:#0f172a;
+    color:white;
+    border:1px solid #475569;
+    border-radius:10px;
+    padding:8px 14px;
+    font-size:15px;
+    min-width:220px;
+    outline:none;
+    transition:0.3s;
+}
+
+.selector-bar select:hover{
+    border-color:#38bdf8;
+    box-shadow:0 0 10px rgba(56,189,248,0.25);
+}
+
+.selector-bar select:focus{
+    border-color:#22c55e;
+    box-shadow:0 0 12px rgba(34,197,94,0.25);
+}
+
+
+.dashboard-panel{
+    opacity:1;
+    transform:translateY(0);
+    transition:opacity 0.35s ease, transform 0.35s ease;
+}
+
+
+body.theme-ac {
+    --theme-color: #22c55e;
+    --theme-glow: rgba(34,197,94,0.35);
+}
+
+body.theme-temp {
+    --theme-color: #38bdf8;
+    --theme-glow: rgba(56,189,248,0.35);
+}
+
+body.theme-smoke {
+    --theme-color: #f97316;
+    --theme-glow: rgba(249,115,22,0.35);
+}
+
+.dashboard-title {
+    color: var(--theme-color);
+    text-shadow: 0 0 16px var(--theme-glow);
+}
+
+.selector-bar {
+    border-color: var(--theme-color);
+    box-shadow: 0 0 18px var(--theme-glow);
+}
+
+.summary-bar {
+    border-color: var(--theme-color);
+}
+
+
+.metric-card.normal {
+    animation: softPulse 3s infinite;
+}
+
+@keyframes softPulse {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(34,197,94,0.20);
+    }
+    50% {
+        box-shadow: 0 0 18px rgba(34,197,94,0.38);
+    }
+}
+
+
+
+
+#liveDot{
+    display:inline-block;
+    width:10px;
+    height:10px;
+    border-radius:50%;
+    margin-left:8px;
+    background:lime;
+    box-shadow:0 0 10px lime;
+    animation:liveBlink 1s infinite;
+}
+
+@keyframes liveBlink{
+    0%,100%{
+        opacity:0.3;
+        transform:scale(1);
+    }
+    50%{
+        opacity:1;
+        transform:scale(1.4);
+    }
+}
+
+
+
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background:
+        radial-gradient(circle at 20% 20%, rgba(56,189,248,0.12), transparent 30%),
+        radial-gradient(circle at 80% 10%, rgba(34,197,94,0.10), transparent 25%),
+        radial-gradient(circle at 50% 90%, rgba(249,115,22,0.10), transparent 30%);
+    pointer-events: none;
+    z-index: -1;
+}
+
+body {
+    background:
+        linear-gradient(135deg, #020617, #0f172a 45%, #111827);
+    min-height: 100vh;
+}
+
+.card,
+.metric-card,
+.selector-bar,
+.summary-bar,
+.site-summary div {
+    backdrop-filter: blur(14px);
+    background: rgba(30,41,59,0.72);
+}
+
+
+
+
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 45px 45px;
+    animation: gridMove 18s linear infinite;
+    pointer-events: none;
+    z-index: -1;
+}
+
+@keyframes gridMove {
+    from { background-position: 0 0; }
+    to { background-position: 45px 45px; }
+}
+
+
+
+
+.metric-card,
+.card {
+    animation: floatCard 5s ease-in-out infinite;
+}
+
+@keyframes floatCard {
+    0%,100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-3px);
+    }
+}
+
+
+
+.dashboard-title{
+    font-size:72px;
+    font-weight:900;
+    letter-spacing:1px;
+    margin-bottom:18px;
+    text-shadow:
+        0 0 4px currentColor,
+        0 0 10px currentColor,
+        0 0 20px rgba(255,255,255,0.08);
+}
+
+
+.pdf-btn {
+    background: linear-gradient(135deg, #ef4444, #f97316);
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 0 14px rgba(239,68,68,0.35);
+}
+
+.pdf-btn:hover {
+    transform: translateY(-2px);
+}
+
+
+
+.logout-btn {
+    background: #ef4444;
+    color: white;
+    padding: 9px 14px;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: bold;
+    box-shadow: 0 0 12px rgba(239,68,68,0.35);
+}
+
+.logout-btn:hover {
+    background: #dc2626;
+}
+
+.top-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:20px;
+}
+
+
+
+.admin-btn {
+    background:#2563eb;
+    color:white;
+    padding:10px 18px;
+    border-radius:12px;
+    text-decoration:none;
+    font-weight:bold;
+    margin-right:10px;
+}
+
+
+.header-actions{
+    display:flex;
+    align-items:center;
+    gap:12px;
+}
+
+.user-badge{
+    background:#334155;
+    padding:10px 16px;
+    border-radius:12px;
+    color:#38bdf8;
+    font-weight:bold;
+    box-shadow:0 0 12px rgba(56,189,248,.15);
+}
+
+
+
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+</head>
+
+
+
+<body style="font-family: Arial; background:#0f172a; color:white;">
+
+
+    
+    
+
+    <div class="top-header">
+        <h1 id="dashboardTitle" class="dashboard-title">⚡ Energy Dashboard</h1>
+    
+        <div class="header-actions">
+            <div class="user-badge">
+                👤 {{ session['user'] }} | {{ role|upper }}
+            </div>
+    
+            {% if role == "admin" %}
+            <a href="/admin/users" class="admin-btn">Users</a>
+            {% endif %}
+    
+            <a href="/logout" class="logout-btn">Logout</a>
+        </div>
+    </div>
+
+    
+
+    <div class="site-summary">
+        <div class="kpi-sites">🏢 Sites: <span id="totalSites">--</span></div>
+        <div class="kpi-devices">📡 Devices: <span id="totalDevices">--</span></div>
+        <div class="kpi-online">🟢 Online: <span id="onlineDevices">--</span></div>
+        <div class="kpi-offline">🔴 Offline: <span id="offlineDevices">--</span></div>
+    </div>
+
+
+    
+    
+    <!-- STATUS BAR -->
+<div style="display:flex; gap:20px; margin-bottom:20px; align-items:center; flex-wrap:wrap;">
+    
+    <div>
+        Status:
+        <span id="statusDot" class="status-dot online-dot"></span>
+        <span id="status" style="color:lime;">ONLINE</span>
+    </div>
+
+    
+    {% if role in ["admin", "operator"] %}
+    <button onclick="downloadPDFReport()" class="pdf-btn">Export PDF Report</button>
+    {% endif %}
+
+
+    <!-- SUMMARY BAR -->
+    <div class="summary-bar">
+        <div class="summary-item">
+            <span id="sumLabel1">⚡ Total Power:</span> <span id="sumValue1">--</span>
+        </div>
+
+        <div class="summary-item">
+            <span id="sumLabel2">🔌 Total Current:</span> <span id="sumValue2">--</span>
+        </div>
+
+        <div class="summary-item">
+            <span id="sumLabel3">🚨 Alerts:</span> <span id="sumValue3">0</span>
+        </div>
+
+        <div class="summary-item" id="sumItem4" style="display:none;">
+            <span id="sumLabel4">--</span> <span id="sumValue4">--</span>
+        </div>
+    </div>
+
+    Last Update: <span id="lastUpdate">--</span>
+    Last Seen: <span id="lastSeen">--</span> <span id="liveDot"></span>
+</div>
+
+
+
+<div class="selector-bar">
+    <label for="siteSelect">Site:</label>
+    <select id="siteSelect" onchange="onSiteChange()"></select>
+
+    <label for="deviceSelect" style="margin-left:20px;">Device:</label>
+    <select id="deviceSelect" onchange="onDeviceChange()"></select>
+</div>
+
+
+<div id="acMeterDashboard" class="dashboard-panel dashboard-hidden">
+
+    <div class="cards-grid">
+        <div class="metric-card" id="card-v1">
+            <div class="metric-title">Voltage 1</div>
+            <div class="metric-value"><span id="v1">--</span> <span class="unit">V</span></div>
+            <canvas class="sparkline" id="spark-v1"></canvas>
+        </div>
+
+        <div class="metric-card" id="card-v2">
+            <div class="metric-title">Voltage 2</div>
+            <div class="metric-value"><span id="v2">--</span> <span class="unit">V</span></div>
+            <canvas class="sparkline" id="spark-v2"></canvas>
+        </div>
+
+        <div class="metric-card" id="card-v3">
+            <div class="metric-title">Voltage 3</div>
+            <div class="metric-value"><span id="v3">--</span> <span class="unit">V</span></div>
+            <canvas class="sparkline" id="spark-v3"></canvas>
+        </div>
+
+        <div class="metric-card" id="card-c1">
+            <div class="metric-title">Current 1</div>
+            <div class="metric-value"><span id="c1">--</span> <span class="unit">A</span></div>
+            <canvas class="sparkline" id="spark-c1"></canvas>
+        </div>
+
+        <div class="metric-card" id="card-c2">
+            <div class="metric-title">Current 2</div>
+            <div class="metric-value"><span id="c2">--</span> <span class="unit">A</span></div>
+            <canvas class="sparkline" id="spark-c2"></canvas>
+        </div>
+
+        <div class="metric-card" id="card-c3">
+            <div class="metric-title">Current 3</div>
+            <div class="metric-value"><span id="c3">--</span> <span class="unit">A</span></div>
+            <canvas class="sparkline" id="spark-c3"></canvas>
+        </div>
+
+        <div class="metric-card" id="card-freq">
+            <div class="metric-title">Frequency</div>
+            <div class="metric-value"><span id="freq">--</span> <span class="unit">Hz</span></div>
+            <canvas class="sparkline" id="spark-freq"></canvas>
+        </div>
+
+        <div class="metric-card" id="card-tp">
+            <div class="metric-title">Total Power</div>
+            <div class="metric-value"><span id="tp">--</span> <span class="unit">kW</span></div>
+            <canvas class="sparkline" id="spark-tp"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>🕘 Alert History</h3>
+        <table id="alertHistoryTable">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Alert</th>
+                    <th>Severity</th>
+                </tr>
+            </thead>
+            <tbody id="alert-history-body"></tbody>
+        </table>
+    </div>
+
+    <div class="card" id="acAlertCard">
+        <h3>🚨 Alerts</h3>
+        <ul id="acAlerts"></ul>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>Voltage</h3><canvas id="vChart"></canvas>
+        </div>
+        <div class="card">
+            <h3>Current</h3><canvas id="cChart"></canvas>
+        </div>
+        <div class="card">
+            <h3>Power</h3><canvas id="pChart"></canvas>
+        </div>
+        <div class="card">
+            <h3>Power Factor</h3><canvas id="pfChart"></canvas>
+        </div>
+        <div class="card">
+            <h3>Apparent Power</h3><canvas id="apChart"></canvas>
+        </div>
+        <div class="card">
+            <h3>Frequency</h3><canvas id="freqChart"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Data Table</h3>
+        <input type="date" id="startDate" onchange="applyFilters()">
+        <input type="date" id="endDate" onchange="applyFilters()">
+
+        <button onclick="applyFilters()">Filter</button>
+        <button onclick="resetFilter()">Reset</button>
+        <button onclick="downloadCurrentCSV()">Download CSV</button>
+
+        <label for="rowLimit">Show:</label>
+        <select id="rowLimit" onchange="applyFilters()">
+            <option value="10">Last 10</option>
+            <option value="20">Last 20</option>
+            <option value="50" selected>Last 50</option>
+        </select>
+
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>C1</th>
+                    <th>C2</th>
+                    <th>C3</th>
+                    <th>Freq</th>
+                    <th>V1</th>
+                    <th>V2</th>
+                    <th>V3</th>
+                    <th>P1</th>
+                    <th>P2</th>
+                    <th>P3</th>
+                    <th>PF1</th>
+                    <th>PF2</th>
+                    <th>PF3</th>
+                    <th>AP1</th>
+                    <th>AP2</th>
+                    <th>AP3</th>
+                    <th>Total P</th>
+                    <th>Total PF</th>
+                    <th>Total AP</th>
+                    <th>Energy</th>
+                </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+        </table>
+    </div>
+
+</div>
+
+
+
+
+<!-- Temperature Dashboard -->
+<div id="temperatureDashboard">
+    <div class="cards-grid">
+        <div class="metric-card" id="card-temp">
+            <div class="metric-title">Temperature</div>
+            <div class="metric-value"><span id="tempValue">--</span> <span class="unit">°C</span></div>
+            <canvas class="sparkline" id="spark-temp"></canvas>
+        </div>
+
+        <div class="metric-card" id="card-humidity">
+            <div class="metric-title">Relative Humidity</div>
+            <div class="metric-value"><span id="humidityValue">--</span> <span class="unit">%</span></div>
+            <canvas class="sparkline" id="spark-humidity"></canvas>
+        </div>
+
+        <div class="metric-card" id="card-battery">
+            <div class="metric-title">Battery</div>
+            <div class="metric-value"><span id="batteryValue">--</span> <span class="unit">V</span></div>
+            <canvas class="sparkline" id="spark-battery"></canvas>
+        </div>
+
+        <div class="metric-card" id="card-movement">
+            <div class="metric-title">Movement</div>
+            <div class="metric-value"><span id="movementValue">--</span></div>
+        </div>
+    </div>
+
+    <div class="card" id="tempAlertCard">
+        <h3>🚨 Alerts</h3>
+        <ul id="tempAlerts"></ul>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>Temperature Trend</h3>
+            <canvas id="tempChart"></canvas>
+        </div>
+
+        <div class="card">
+            <h3>Relative Humidity Trend</h3>
+            <canvas id="humidityChart"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Temperature Readings</h3>
+        <button onclick="downloadCurrentCSV()">Download CSV</button>
+        <input type="date" id="tempStartDate">
+        <input type="date" id="tempEndDate">
+        
+        <button onclick="filterSensorTable()">Filter</button>
+        <button onclick="resetSensorFilter()">Reset</button>
+        
+        
+        <label>Show:</label>
+        <select id="tempRowLimit" onchange="filterSensorTable()">
+            <option value="10">Last 10</option>
+            <option value="20">Last 20</option>
+            <option value="50" selected>Last 50</option>
+        </select>
+        <table id="temperatureTable">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Event</th>
+                    <th>State</th>
+                    <th>Battery</th>
+                    <th>Movement</th>
+                    <th>Temperature</th>
+                    <th>Relative Humidity</th>
+                </tr>
+            </thead>
+            <tbody id="temperature-table-body"></tbody>
+        </table>
+    </div>
+</div>
+
+
+
+
+
+
+
+    <div id="smokeDashboard">
+        <div class="cards-grid">
+    
+            <div class="metric-card" id="card-fault">
+                <div class="metric-title">Fault Alarm</div>
+                <div class="metric-value"><span id="faultAlarm">--</span></div>
+                <div class="badge normal-badge" id="faultBadge">NORMAL</div>
+            </div>
+    
+            <div class="metric-card" id="card-smoke">
+                <div class="metric-title">Smoke Alarm</div>
+                <div class="metric-value"><span id="smokeAlarm">--</span></div>
+                <div class="badge normal-badge" id="smokeBadge">NORMAL</div>
+            </div>
+    
+            <div class="metric-card" id="card-tamper">
+                <div class="metric-title">Tamper Alarm</div>
+                <div class="metric-value"><span id="tamperAlarm">--</span></div>
+                <div class="badge normal-badge" id="tamperBadge">NORMAL</div>
+            </div>
+    
+            <div class="metric-card" id="card-smoke-voltage">
+                <div class="metric-title">Voltage Alarm</div>
+                <div class="metric-value"><span id="voltageAlarm">--</span></div>
+                <div class="badge normal-badge" id="voltageBadge">NORMAL</div>
+            </div>
+    
+        </div>
+
+
+
+
+
+
+
+    
+
+    <div class="card" id="smokeAlertCard">
+        <h3>🚨 Alerts</h3>
+        <ul id="smokeAlerts"></ul>
+    </div>
+
+
+
+    
+    <div class="card">
+        <h3>Smoke Detector Readings</h3>
+        <button onclick="downloadCurrentCSV()">Download CSV</button>
+        <input type="date" id="smokeStartDate">
+        <input type="date" id="smokeEndDate">
+        
+        <button onclick="filterSensorTable()">Filter</button>
+        <button onclick="resetSensorFilter()">Reset</button>
+        
+        <label>Show:</label>
+        <select id="smokeRowLimit" onchange="filterSensorTable()">
+            <option value="10">Last 10</option>
+            <option value="20">Last 20</option>
+            <option value="50" selected>Last 50</option>
+        </select>
+
+        <table id="smokeTable">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Fault Alarm</th>
+                    <th>Smoke Alarm</th>
+                    <th>Tamper Alarm</th>
+                    <th>Voltage Alarm</th>
+                </tr>
+            </thead>
+            <tbody id="smoke-table-body"></tbody>
+        </table>
+    </div>
+</div>
+
+    <div id="genericDashboard" style="display:none;">
+        <div class="card">
+            <h2>📡 Generic Device Dashboard</h2>
+            <p>This device type does not have a custom view yet.</p>
+        </div>
+    </div>
+    <div id="toastContainer"></div>
+</body>
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    let allDevices = [];
+    let selectedSite = "";
+    let selectedDeviceEui = "";
+    let dashboardTimer = null;
+    let lastToastMessage = "";
+    let lastToastTime = 0;
+
+
+    async function loadDevices() {
+            let r = await fetch("/devices");
+            allDevices = await r.json();
+
+            allDevices = allDevices.map(d => ({
+                site: d.site?.trim(),
+                device_name: d.device_name?.trim(),
+                device_type: d.device_type?.trim(),
+                device_eui: d.device_eui?.trim()
+            }));
+
+            allDevices = allDevices.filter((device, index, self) =>
+                index === self.findIndex(d =>
+                    d.site === device.site &&
+                    d.device_name === device.device_name &&
+                    d.device_type === device.device_type &&
+                    d.device_eui === device.device_eui
+                )
+            );
+
+            let siteSelect = document.getElementById("siteSelect");
+            siteSelect.innerHTML = "";
+
+            let sites = [...new Set(allDevices.map(d => d.site))];
+
+            sites.forEach(site => {
+                siteSelect.innerHTML += `<option value="${site}">${site}</option>`;
+            });
+
+            if (sites.length > 0) {
+                selectedSite = sites[0];
+                siteSelect.value = selectedSite;
+                populateDeviceSelect();
+            }
+        }
+
+    function populateDeviceSelect() {
+            let deviceSelect = document.getElementById("deviceSelect");
+            deviceSelect.innerHTML = "";
+
+            let devices = allDevices.filter(d => d.site === selectedSite);
+
+            devices.forEach(d => {
+                deviceSelect.innerHTML += `
+                    <option value="${d.device_eui}">
+                        ${d.device_name} (${d.device_eui})
+                    </option>`;
+        });
+
+            if (devices.length > 0) {
+                selectedDeviceEui = devices[0].device_eui;
+                deviceSelect.value = selectedDeviceEui;
+
+                switchDashboardByDeviceType(devices[0].device_type);
+                applyDeviceTheme(devices[0].device_type);
+
+                if (devices[0].device_type === "temperature_sensor") {
+                    updateSummary("temperature_sensor", {});
+                } else if (devices[0].device_type === "smoke_detector") {
+                    updateSummary("smoke_detector", {});
+                } else {
+                    updateSummary("ac_meter", {});
+                }
+
+                document.getElementById("dashboardTitle").innerText =
+                    `⚡ ${devices[0].device_name} Dashboard`;
+            }
+        }
+
+    
+
+
+    function onSiteChange() {
+            selectedSite = document.getElementById("siteSelect").value;
+            populateDeviceSelect();
+            runCurrentDashboard();
+        }
+
+    function onDeviceChange() {
+            selectedDeviceEui = document.getElementById("deviceSelect").value;
+
+            let selectedDevice = allDevices.find(d => d.device_eui === selectedDeviceEui);
+
+            if (selectedDevice) {
+                switchDashboardByDeviceType(selectedDevice.device_type);
+                applyDeviceTheme(selectedDevice.device_type);
+
+                document.getElementById("dashboardTitle").innerText =
+                    `⚡ ${selectedDevice.device_name} Dashboard`;
+
+
+                if (selectedDevice.device_type === "temperature_sensor") {
+                    updateSummary("temperature_sensor", {});
+                } else if (selectedDevice.device_type === "smoke_detector") {
+                    updateSummary("smoke_detector", {});
+                } else {
+                    updateSummary("ac_meter", {});
+                }
+            }
+
+            runCurrentDashboard();
+        }
+
+
+
+
+    function applyDeviceTheme(deviceType) {
+            document.body.classList.remove("theme-ac", "theme-temp", "theme-smoke");
+
+            if (deviceType === "temperature_sensor") {
+                document.body.classList.add("theme-temp");
+            } else if (deviceType === "smoke_detector") {
+                document.body.classList.add("theme-smoke");
+            } else {
+                document.body.classList.add("theme-ac");
+            }
+        }
+
+
+
+
+    
+
+    function drawSparkline(canvasId, values, color = "#38bdf8") {
+            let canvas = document.getElementById(canvasId);
+            if (!canvas || !values || values.length < 2) return;
+
+            let ctx = canvas.getContext("2d");
+            let width = canvas.clientWidth;
+            let height = canvas.clientHeight;
+
+            canvas.width = width;
+            canvas.height = height;
+
+            ctx.clearRect(0, 0, width, height);
+
+            let clean = values.filter(v => v !== null && v !== undefined);
+
+            let min = Math.min(...clean);
+            let max = Math.max(...clean);
+            if (min === max) max = min + 1;
+
+            ctx.beginPath();
+            ctx.lineWidth = 1.6;
+            ctx.strokeStyle = color;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = color;
+
+            for (let i = 0; i < clean.length; i++) {
+                let x = (i / (clean.length - 1)) * width;
+                let y = height - ((clean[i] - min) / (max - min)) * (height - 6) - 3;
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    let prevX = ((i - 1) / (clean.length - 1)) * width;
+                    let prevY = height - ((clean[i - 1] - min) / (max - min)) * (height - 6) - 3;
+                    let cx = (prevX + x) / 2;
+                    ctx.quadraticCurveTo(prevX, prevY, cx, (prevY + y) / 2);
+                }
+            }
+
+            ctx.stroke();
+        }
+
+        
+
+
+
+    async function downloadPDFReport() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF("p", "mm", "a4");
+
+            let selectedDevice = allDevices.find(d => d.device_eui === selectedDeviceEui);
+
+            let title = document.getElementById("dashboardTitle").innerText;
+            let status = document.getElementById("status").innerText;
+            let lastUpdate = document.getElementById("lastUpdate").innerText;
+            let lastSeen = document.getElementById("lastSeen").innerText;
+
+            // ---------- HEADER ----------
+            doc.setFontSize(18);
+            doc.text("Industrial IoT Monitoring Report", 14, 18);
+
+            doc.setFontSize(11);
+            doc.text(`Dashboard: ${title.replace(/[^\x00-\x7F]/g, "")}`, 14, 30);
+            doc.text(`Site: ${selectedSite}`, 14, 38);
+            doc.text(`Device: ${selectedDevice ? selectedDevice.device_name : "--"}`, 14, 46);
+            doc.text(`Device EUI: ${selectedDeviceEui}`, 14, 54);
+            doc.text(`Status: ${status}`, 14, 62);
+            doc.text(`Last Update: ${lastUpdate}`, 14, 70);
+            doc.text(`Last Seen: ${lastSeen}`, 14, 78);
+
+            // ---------- SUMMARY VALUES ----------
+            doc.setFontSize(13);
+            doc.text("Live Summary", 14, 92);
+
+            doc.setFontSize(10);
+            doc.text(`${document.getElementById("sumLabel1").innerText.replace(/[^\x00-\x7F]/g, "")}: ${document.getElementById("sumValue1").innerText}`, 14, 102);
+            doc.text(`${document.getElementById("sumLabel2").innerText.replace(/[^\x00-\x7F]/g, "")}: ${document.getElementById("sumValue2").innerText}`, 14, 110);
+            doc.text(`${document.getElementById("sumLabel3").innerText.replace(/[^\x00-\x7F]/g, "")}: ${document.getElementById("sumValue3").innerText}`, 14, 118);
+
+            let item4 = document.getElementById("sumItem4");
+            if (item4 && item4.style.display !== "none") {
+                doc.text(`${document.getElementById("sumLabel4").innerText.replace(/[^\x00-\x7F]/g, "")}: ${document.getElementById("sumValue4").innerText}`, 14, 126);
+            }
+
+            // ---------- DASHBOARD SCREENSHOT ----------
+            let dash = document.body;
+            let canvas = await html2canvas(dash, { scale: 0.4 });
+            let imgData = canvas.toDataURL("image/png");
+
+            doc.addPage();
+            doc.setFontSize(14);
+            doc.text("Dashboard Snapshot", 14, 15);
+            doc.addImage(imgData, "PNG", 10, 22, 190, 95);
+
+            // ---------- TABLE EXPORT ----------
+            doc.addPage();
+            doc.setFontSize(14);
+            doc.text("Recent Telemetry Records", 14, 15);
+
+            let y = 28;
+            doc.setFontSize(9);
+
+            let tableRows = [];
+
+            if (selectedDevice.device_type === "temperature_sensor") {
+                tableRows = [...document.querySelectorAll("#temperature-table-body tr")];
+            } else if (selectedDevice.device_type === "smoke_detector") {
+                tableRows = [...document.querySelectorAll("#smoke-table-body tr")];
+            } else {
+                tableRows = [...document.querySelectorAll("#data-table-body tr")];
+            }
+
+            let limit = Math.min(tableRows.length, 12);
+
+            for (let i = 0; i < limit; i++) {
+                let cols = [...tableRows[i].querySelectorAll("td")]
+                    .map(td => td.innerText.replace(/[^\x00-\x7F]/g, ""))
+                    .join(" | ");
+
+                doc.text(cols, 14, y);
+                y += 8;
+            }
+
+            // ---------- FOOTER ----------
+            doc.setFontSize(10);
+            doc.text(`Generated at: ${new Date().toLocaleString()}`, 14, 285);
+
+            doc.save(`${selectedDevice ? selectedDevice.device_name : "device"}_full_report.pdf`);
+        }
+
+
+
+
+
+    // -------- CREATE CHARTS --------
+const vChart = new Chart(document.getElementById("vChart"), {
+    type: "line",
+    data: {
+        labels: [],
+        datasets: [
+            { label: "V1", data: [] },
+            { label: "V2", data: [] },
+            { label: "V3", data: [] }
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                labels: { color: "#e2e8f0" }
+            }
+        },
+        scales: {
+            x: {
+                ticks: { color: "#cbd5f5" },
+                grid: { color: "rgba(255,255,255,0.05)" }
+            },
+            y: {
+                ticks: { color: "#cbd5f5" },
+                grid: { color: "rgba(255,255,255,0.05)" }
+            }
+        }
+    }
+})
+
+const cChart = new Chart(document.getElementById("cChart"), {
+        type: "line",
+        data: {
+            labels: [], datasets: [
+                { label: "C1", data: [] },
+                { label: "C2", data: [] },
+                { label: "C3", data: [] }
+            ]
+        },
+        options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                labels: { color: "#e2e8f0" }
+            }
+        },
+        scales: {
+            x: {
+                ticks: { color: "#cbd5f5" },
+                grid: { color: "rgba(255,255,255,0.05)" }
+            },
+            y: {
+                ticks: { color: "#cbd5f5" },
+                grid: { color: "rgba(255,255,255,0.05)" }
+            }
+        }
+    }
+})
+
+        
+    
+
+const pChart = new Chart(document.getElementById("pChart"), {
+        type: "line",
+        data: {
+            labels: [], datasets: [
+                { label: "P1", data: [] },
+                { label: "P2", data: [] },
+                { label: "P3", data: [] }
+            ]
+        },
+        options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                labels: { color: "#e2e8f0" }
+            }
+        },
+        scales: {
+            x: {
+                ticks: { color: "#cbd5f5" },
+                grid: { color: "rgba(255,255,255,0.05)" }
+            },
+            y: {
+                ticks: { color: "#cbd5f5" },
+                grid: { color: "rgba(255,255,255,0.05)" }
+            }
+        }
+    }
+})
+    
+
+const pfChart = new Chart(document.getElementById("pfChart"), {
+        type: "line",
+        data: {
+            labels: [], datasets: [
+                { label: "PF1", data: [] },
+                { label: "PF2", data: [] },
+                { label: "PF3", data: [] }
+            ]
+        },
+        options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                labels: { color: "#e2e8f0" }
+            }
+        },
+        scales: {
+            x: {
+                ticks: { color: "#cbd5f5" },
+                grid: { color: "rgba(255,255,255,0.05)" }
+            },
+            y: {
+                ticks: { color: "#cbd5f5" },
+                grid: { color: "rgba(255,255,255,0.05)" }
+            }
+        }
+    }
+})
+
+
+const apChart = new Chart(document.getElementById("apChart"), {
+        type: "line",
+        data: {
+            labels: [], datasets: [
+                { label: "AP1", data: [] },
+                { label: "AP2", data: [] },
+                { label: "AP3", data: [] }
+            ]
+        },
+        options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                labels: { color: "#e2e8f0" }
+            }
+        },
+        scales: {
+            x: {
+                ticks: { color: "#cbd5f5" },
+                grid: { color: "rgba(255,255,255,0.05)" }
+            },
+            y: {
+                ticks: { color: "#cbd5f5" },
+                grid: { color: "rgba(255,255,255,0.05)" }
+            }
+        }
+    }
+})
+    
+
+const freqChart = new Chart(document.getElementById("freqChart"), {
+        type: "line",
+        data: {
+            labels: [], datasets: [
+                { label: "Frequency", data: [] }
+            ]
+        },
+        options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                labels: { color: "#e2e8f0" }
+            }
+        },
+        scales: {
+            x: {
+                ticks: { color: "#cbd5f5" },
+                grid: { color: "rgba(255,255,255,0.05)" }
+            },
+            y: {
+                ticks: { color: "#cbd5f5" },
+                grid: { color: "rgba(255,255,255,0.05)" }
+            }
+        }
+    }
+})
+
+
+    const tempChart = new Chart(document.getElementById("tempChart"), {
+        type: "line",
+        data: {
+            labels: [],
+            datasets: [
+                { label: "Temperature", data: [] }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    labels: { color: "#e2e8f0" }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: "#cbd5f5" },
+                    grid: { color: "rgba(255,255,255,0.05)" }
+                },
+                y: {
+                    ticks: { color: "#cbd5f5" },
+                    grid: { color: "rgba(255,255,255,0.05)" }
+                }
+            }
+        }
+    });
+
+
+
+   let humidityChart = new Chart(document.getElementById("humidityChart"), {
+        type: "line",
+        data: {
+            labels: [],
+            datasets: [
+                { label: "Relative Humidity", data: [] }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    labels: { color: "#e2e8f0" }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: "#cbd5f5" },
+                    grid: { color: "rgba(255,255,255,0.05)" }
+                },
+                y: {
+                    ticks: { color: "#cbd5f5" },
+                    grid: { color: "rgba(255,255,255,0.05)" }
+                }
+            }
+        }
+    });
+
+
+
+
+   
+    // type can be "success", "warning", "danger"
+   function showToast(message, type = "warning") {
+        let now = Date.now();
+
+        if (message === lastToastMessage && (now - lastToastTime) < 15000) {
+            return;
+        }
+
+        lastToastMessage = message;
+        lastToastTime = now;
+
+        let container = document.getElementById("toastContainer");
+
+        let toast = document.createElement("div");
+        toast.className = `toast ${type}`;
+        toast.innerText = message;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.opacity = "0";
+            toast.style.transform = "translateX(100%)";
+            setTimeout(() => toast.remove(), 500);
+        }, 4000);
+    }
+
+   
+   
+   
+   
+    async function updateSiteSummary() {
+        let r = await fetch("/device_status_summary");
+        let s = await r.json();
+
+        animateValue("totalSites", s.sites, 0);
+        animateValue("totalDevices", s.devices, 0);
+        animateValue("onlineDevices", s.online, 0);
+        animateValue("offlineDevices", s.offline, 0);
+    }
+
+
+
+
+
+    function updateSummary(deviceType, values = {}) {
+            let item4 = document.getElementById("sumItem4");
+
+            if (deviceType === "temperature_sensor") {
+                document.getElementById("sumLabel1").innerText = "🌡 Temperature:";
+                document.getElementById("sumValue1").innerText = `${values.temperature ?? "--"} °C`;
+
+                document.getElementById("sumLabel2").innerText = "💧 Humidity:";
+                document.getElementById("sumValue2").innerText = `${values.humidity ?? "--"} %`;
+
+                document.getElementById("sumLabel3").innerText = "🔋 Battery:";
+                document.getElementById("sumValue3").innerText = `${values.battery ?? "--"} V`;
+
+                item4.style.display = "block";
+                document.getElementById("sumLabel4").innerText = "🏃 Movement:";
+                document.getElementById("sumValue4").innerText = values.movement ?? "--";
+
+            } else if (deviceType === "smoke_detector") {
+                document.getElementById("sumLabel1").innerText = "Fault:";
+                document.getElementById("sumValue1").innerText = values.fault ?? "--";
+
+                document.getElementById("sumLabel2").innerText = "Smoke:";
+                document.getElementById("sumValue2").innerText = values.smoke ?? "--";
+
+                document.getElementById("sumLabel3").innerText = "Tamper:";
+                document.getElementById("sumValue3").innerText = values.tamper ?? "--";
+
+                item4.style.display = "block";
+                document.getElementById("sumLabel4").innerText = "Voltage:";
+                document.getElementById("sumValue4").innerText = values.voltage ?? "--";
+
+            } else {
+                document.getElementById("sumLabel1").innerText = "⚡ Total Power:";
+                document.getElementById("sumValue1").innerText = `${values.power ?? "--"} kW`;
+
+                document.getElementById("sumLabel2").innerText = "🔌 Total Current:";
+                document.getElementById("sumValue2").innerText = `${values.current ?? "--"} A`;
+
+                document.getElementById("sumLabel3").innerText = "🚨 Alerts:";
+                document.getElementById("sumValue3").innerText = values.alerts ?? 0;
+
+                item4.style.display = "none";
+            }
+        }
+
+
+
+    async function loadTemperatureData() {
+            if (!selectedSite || !selectedDeviceEui) return;
+
+            let r = await fetch(`/temperature_data?site=${selectedSite}&device_eui=${selectedDeviceEui}`);
+            let m = await r.json();
+            console.log("TEMP STATUS:", m.status, "LAST SEEN:", m.last_seen_seconds);
+
+            let temps = m.temperature || [];
+            let humidity = m.humidity || [];
+            let battery = m.battery || [];
+            let movement = m.movement || [];
+            let event = m.event || [];
+            let state = m.state || [];
+            let timestamps = m.timestamps || [];
+
+            let labels = timestamps.map(t => t.split(" ")[1] || t);
+
+            tempChart.data.labels = labels;
+            tempChart.data.datasets[0].data = temps;
+            tempChart.update();
+
+            if (humidityChart) {
+            humidityChart.data.labels = labels;
+            humidityChart.data.datasets[0].data = humidity;
+            humidityChart.update();
+        }
+
+            
+            let last = timestamps.length - 1;
+
+            if (last >= 0) {
+                animateValue("tempValue", temps[last], 1);
+                animateValue("humidityValue", humidity[last], 1);
+                animateValue("batteryValue", battery[last], 1);
+                document.getElementById("movementValue").innerText = movement[last] ?? "--";
+
+                updateSummary("temperature_sensor", {
+                    temperature: temps[last],
+                    humidity: humidity[last],
+                    battery: battery[last],
+                    movement: movement[last]
+                });
+            }
+
+
+            let alerts = [];
+
+            if (last >= 0) {
+                if (temps[last] > 35) {
+                    alerts.push({ message: "⚠️ High Temperature", color: "red" });
+                    showToast("🌡 High Temperature Alert", "danger");
+                }
+
+                if (temps[last] < 10) {
+                    alerts.push({ message: "⚠️ Low Temperature", color: "orange" });
+                    showToast("🌡 Low Temperature Alert", "warning");
+                }
+
+                if (humidity[last] > 85) {
+                    alerts.push({ message: "⚠️ High Humidity", color: "orange" });
+                    showToast("💧 High Humidity Alert", "warning");
+                }
+
+                if (battery[last] < 3.0) {
+                    alerts.push({ message: "⚠️ Low Battery", color: "red" });
+                    showToast("🔋 Temperature Sensor Low Battery", "warning");
+                }
+            }
+
+            alerts = addOfflineAlert(alerts, m.status, m.last_seen_seconds);
+            showSensorAlerts(alerts);
+
+
+            // status + last seen
+            updateStatusUI(m.status);
+            
+
+            drawSparkline("spark-temp", temps.slice(-10), "#22c55e");
+            drawSparkline("spark-humidity", humidity.slice(-10), "#38bdf8");
+            drawSparkline("spark-battery", battery.slice(-10), "#f59e0b");
+
+            setCardStatus("card-temp", temps[last] > 35 || temps[last] < 10 ? "danger" : "normal");
+            setCardStatus("card-humidity", humidity[last] > 85 ? "warning" : "normal");
+            setCardStatus("card-battery", battery[last] < 3.0 ? "danger" : "normal");
+            setCardStatus("card-movement", "normal");
+
+            
+
+            document.getElementById("lastUpdate").innerText = new Date().toLocaleTimeString();
+
+            if (m.last_seen_seconds === null || m.last_seen_seconds === undefined) {
+                document.getElementById("lastSeen").innerText = "--";
+            } else if (m.last_seen_seconds < 60) {
+                document.getElementById("lastSeen").innerText = `${m.last_seen_seconds}s ago`;
+            } else {
+                let mins = Math.floor(m.last_seen_seconds / 60);
+                document.getElementById("lastSeen").innerText = `${mins} min ago`;
+
+            }
+            let liveDot = document.getElementById("liveDot");
+
+            if (m.status === "ONLINE") {
+                liveDot.style.background = "lime";
+                liveDot.style.boxShadow = "0 0 10px lime";
+            } else {
+                liveDot.style.background = "red";
+                liveDot.style.boxShadow = "0 0 10px red";
+            }
+            
+
+            // temperature table
+            let table = document.getElementById("temperature-table-body");
+            table.innerHTML = "";
+
+            for (let i = timestamps.length - 1; i >= 0; i--) {
+                table.innerHTML += `
+        <tr>
+            <td>${timestamps[i] ?? ""}</td>
+            <td>${event[i] ?? ""}</td>
+            <td>${state[i] ?? ""}</td>
+            <td>${battery[i] ?? ""}</td>
+            <td>${movement[i] ?? ""}</td>
+            <td>${temps[i] ?? ""}</td>
+            <td>${humidity[i] ?? ""}</td>
+        </tr>`;
+            }
+        filterSensorTable();
+        }
+        
+
+    
+    // -------- CARD STATUS FUNCTION --------
+    
+    async function loadSmokeData() {
+            if (!selectedSite || !selectedDeviceEui) return;
+
+            let r = await fetch(`/smoke_data?site=${selectedSite}&device_eui=${selectedDeviceEui}`);
+            let m = await r.json();
+
+            let timestamps = m.timestamps || [];
+            let fault = m.fault_alarm || [];
+            let smoke = m.smoke_alarm || [];
+            let tamper = m.tamper_alarm || [];
+            let voltage = m.voltage_alarm || [];
+
+            let last = timestamps.length - 1;
+
+            if (last >= 0) {
+                document.getElementById("faultAlarm").innerText = fault[last] ?? "--";
+                document.getElementById("smokeAlarm").innerText = smoke[last] ?? "--";
+                document.getElementById("tamperAlarm").innerText = tamper[last] ?? "--";
+                document.getElementById("voltageAlarm").innerText = voltage[last] ?? "--";
+
+                let alerts = [];
+
+                if (fault[last] === 1) {
+                    alerts.push({ message: "⚠️ Fault Alarm", color: "red" });
+                    showToast("⚠️ Smoke Sensor Fault", "warning");
+                }
+
+                if (smoke[last] === 1) {
+                    alerts.push({ message: "🚨 Smoke Alarm", color: "red" });
+                    showToast("🚨 Smoke Alarm Triggered", "danger");
+                }
+
+                if (tamper[last] === 1) {
+                    alerts.push({ message: "⚠️ Tamper Alarm", color: "orange" });
+                    showToast("⚠️ Smoke Sensor Tamper", "warning");
+                }
+
+                if (voltage[last] === 1) {
+                    alerts.push({ message: "⚠️ Voltage Alarm", color: "orange" });
+                    showToast("⚠️ Smoke Sensor Voltage Alarm", "warning");
+                }
+
+                alerts = addOfflineAlert(alerts, m.status, m.last_seen_seconds);
+
+                showSensorAlerts(alerts);
+
+                updateSummary("smoke_detector", {
+                    fault: fault[last],
+                    smoke: smoke[last],
+                    tamper: tamper[last],
+                    voltage: voltage[last]
+                });
+            }
+
+            updateStatusUI(m.status);
+            
+            document.getElementById("lastUpdate").innerText = new Date().toLocaleTimeString();
+
+            setCardStatus("card-fault", fault[last] === 1 ? "danger" : "normal");
+            setCardStatus("card-smoke", smoke[last] === 1 ? "danger" : "normal");
+            setCardStatus("card-tamper", tamper[last] === 1 ? "warning" : "normal");
+            setCardStatus("card-smoke-voltage", voltage[last] === 1 ? "warning" : "normal");
+
+
+
+            updateBadge("faultBadge", fault[last] === 1 ? "FAULT" : "NORMAL", fault[last] === 1 ? "danger-badge" : "normal-badge");
+            updateBadge("smokeBadge", smoke[last] === 1 ? "SMOKE" : "NORMAL", smoke[last] === 1 ? "danger-badge" : "normal-badge");
+            updateBadge("tamperBadge", tamper[last] === 1 ? "TAMPER" : "NORMAL", tamper[last] === 1 ? "warning-badge" : "normal-badge");
+            updateBadge("voltageBadge", voltage[last] === 1 ? "VOLTAGE" : "NORMAL", voltage[last] === 1 ? "warning-badge" : "normal-badge");
+
+
+            if (m.last_seen_seconds === null || m.last_seen_seconds === undefined) {
+                document.getElementById("lastSeen").innerText = "--";
+            } else if (m.last_seen_seconds < 60) {
+                document.getElementById("lastSeen").innerText = `${m.last_seen_seconds}s ago`;
+            } else {
+                let mins = Math.floor(m.last_seen_seconds / 60);
+                document.getElementById("lastSeen").innerText = `${mins} min ago`;
+
+            }
+            let liveDot = document.getElementById("liveDot");
+
+            if (m.status === "ONLINE") {
+                    liveDot.style.background = "lime";
+                    liveDot.style.boxShadow = "0 0 10px lime";
+            } else {
+                    liveDot.style.background = "red";
+                    liveDot.style.boxShadow = "0 0 10px red";
+                }
+            
+
+            let table = document.getElementById("smoke-table-body");
+            table.innerHTML = "";
+
+            for (let i = timestamps.length - 1; i >= 0; i--) {
+                table.innerHTML += `
+        <tr>
+            <td>${timestamps[i] ?? ""}</td>
+            <td>${fault[i] ?? ""}</td>
+            <td>${smoke[i] ?? ""}</td>
+            <td>${tamper[i] ?? ""}</td>
+            <td>${voltage[i] ?? ""}</td>
+        </tr>`;
+            }
+        filterSensorTable();
+        }
+        
+    
+    
+    
+    
+
+    function setCardStatus(cardId, status) {
+    let card = document.getElementById(cardId);
+    if (!card) return;
+
+    card.classList.remove("normal", "warning", "danger");
+    card.classList.add(status);
+}
+
+
+
+    function updateStatusUI(status) {
+            let statusEl = document.getElementById("status");
+            let dot = document.getElementById("statusDot");
+
+            if (!statusEl || !dot) return;
+
+            let cleanStatus = String(status).trim().toUpperCase();
+
+            statusEl.innerText = cleanStatus;
+
+            dot.classList.remove("online-dot", "offline-dot");
+
+            if (cleanStatus === "ONLINE") {
+                statusEl.style.color = "lime";
+                dot.classList.add("online-dot");
+            } else {
+                statusEl.style.color = "red";
+                dot.classList.add("offline-dot");
+            }
+        }
+
+
+
+
+
+
+    // -------- LOAD DATA --------
+    async function loadMetrics() {
+        if (!selectedSite || !selectedDeviceEui) return;
+        let r = await fetch(`/data?site=${selectedSite}&device_eui=${selectedDeviceEui}`)
+        let m = await r.json()
+
+        const MAX_POINTS = 50;
+        let start = Math.max(0, m.voltage1.length - MAX_POINTS);
+
+        let voltage1 = m.voltage1.slice(start);
+        let voltage2 = m.voltage2.slice(start);
+        let voltage3 = m.voltage3.slice(start);
+
+        let current1 = m.current1.slice(start);
+        let current2 = m.current2.slice(start);
+        let current3 = m.current3.slice(start);
+
+        let power1 = m.power1.slice(start);
+        let power2 = m.power2.slice(start);
+        let power3 = m.power3.slice(start);
+
+        let pf1 = m.pf1.slice(start);
+        let pf2 = m.pf2.slice(start);
+        let pf3 = m.pf3.slice(start);
+
+        let apparent1 = m.apparent1.slice(start);
+        let apparent2 = m.apparent2.slice(start);
+        let apparent3 = m.apparent3.slice(start);
+
+        let frequency = m.frequency.slice(start);
+        let total_power = m.total_power.slice(start);
+
+        let labels = [];
+        if (m.timestamps) {
+            labels = m.timestamps.slice(start).map(t => {
+                return t.split(" ")[1] || t;
+            });
+        } else {
+            labels = voltage1.map((_, i) => i);
+        }
+
+        vChart.data.labels = labels;
+        vChart.data.datasets[0].data = voltage1;
+        vChart.data.datasets[1].data = voltage2;
+        vChart.data.datasets[2].data = voltage3;
+
+        cChart.data.labels = labels;
+        cChart.data.datasets[0].data = current1;
+        cChart.data.datasets[1].data = current2;
+        cChart.data.datasets[2].data = current3;
+
+        pChart.data.labels = labels;
+        pChart.data.datasets[0].data = power1;
+        pChart.data.datasets[1].data = power2;
+        pChart.data.datasets[2].data = power3;
+
+        pfChart.data.labels = labels;
+        pfChart.data.datasets[0].data = pf1;
+        pfChart.data.datasets[1].data = pf2;
+        pfChart.data.datasets[2].data = pf3;
+
+        apChart.data.labels = labels;
+        apChart.data.datasets[0].data = apparent1;
+        apChart.data.datasets[1].data = apparent2;
+        apChart.data.datasets[2].data = apparent3;
+
+        freqChart.data.labels = labels;
+        freqChart.data.datasets[0].data = frequency;
+
+       let last = labels.length - 1;
+       let totalCurrent = 0;
+       let alertCount = m.alerts ? m.alerts.length : 0;
+
+       let acAlerts = [];
+
+
+        if (m.alerts) {
+            m.alerts.forEach(a => {
+                acAlerts.push({ message: a, color: "orange" });
+                showToast(a, "warning");
+            });
+        }
+
+        
+        acAlerts = addOfflineAlert(acAlerts, m.status, m.last_seen_seconds);
+        showSensorAlerts(acAlerts);
+       
+        if (last >= 0) {
+            animateValue("v1", voltage1[last], 1);
+            animateValue("v2", voltage2[last], 1);
+            animateValue("v3", voltage3[last], 1);
+
+            animateValue("c1", current1[last], 1);
+            animateValue("c2", current2[last], 1);
+            animateValue("c3", current3[last], 1);
+
+            animateValue("freq", frequency[last], 2);
+            animateValue("tp", total_power[last], 2);
+
+            document.getElementById("lastUpdate").innerText = new Date().toLocaleTimeString();
+
+            // Voltage status
+            setCardStatus("card-v1", voltage1[last] >= 200 && voltage1[last] <= 250 ? "normal" : "danger");
+            setCardStatus("card-v2", voltage2[last] >= 200 && voltage2[last] <= 250 ? "normal" : "danger");
+            setCardStatus("card-v3", voltage3[last] >= 200 && voltage3[last] <= 250 ? "normal" : "danger");
+
+            // Current status
+            setCardStatus("card-c1", current1[last] <= 20 ? "normal" : "warning");
+            setCardStatus("card-c2", current2[last] <= 20 ? "normal" : "warning");
+            setCardStatus("card-c3", current3[last] <= 20 ? "normal" : "warning");
+
+            // Frequency status
+            setCardStatus("card-freq", frequency[last] >= 49 && frequency[last] <= 51 ? "normal" : "danger");
+
+            // Total Power status
+            setCardStatus("card-tp", total_power[last] <= 15 ? "normal" : "warning");
+
+            // SUMMARY VALUES
+            totalCurrent =
+                (current1[last] || 0) +
+                (current2[last] || 0) +
+                (current3[last] || 0);
+
+            updateSummary("ac_meter", {
+                power: total_power[last] ?? "--",
+                current: totalCurrent.toFixed(1),
+                alerts: alertCount
+            });
+
+
+        } else {
+            document.getElementById("v1").innerText = "--";
+            document.getElementById("v2").innerText = "--";
+            document.getElementById("v3").innerText = "--";
+
+            document.getElementById("c1").innerText = "--";
+            document.getElementById("c2").innerText = "--";
+            document.getElementById("c3").innerText = "--";
+
+            document.getElementById("freq").innerText = "--";
+            document.getElementById("tp").innerText = "--";
+        }
+        vChart.update();
+        cChart.update();
+        pChart.update();
+        pfChart.update();
+        apChart.update();
+        freqChart.update();
+
+
+
+        drawSparkline("spark-v1", voltage1.slice(-10), "#22c55e");
+        drawSparkline("spark-v2", voltage2.slice(-10), "#22c55e");
+        drawSparkline("spark-v3", voltage3.slice(-10), "#22c55e");
+
+        drawSparkline("spark-c1", current1.slice(-10), "#22c55e");
+        drawSparkline("spark-c2", current2.slice(-10), "#22c55e");
+        drawSparkline("spark-c3", current3.slice(-10), "#22c55e");
+
+        drawSparkline("spark-freq", frequency.slice(-10), "#38bdf8");
+        drawSparkline("spark-tp", total_power.slice(-10), "#f59e0b");
+
+
+
+        // -------- STATUS --------
+        let statusEl = document.getElementById("status");
+        statusEl.innerText = m.status;
+
+        let statusColor = m.status === "ONLINE" ? "lime" : "red";
+        statusEl.style.color = statusColor;
+
+        
+        let lastSeenEl = document.getElementById("lastSeen");
+
+        if (m.last_seen_seconds === null || m.last_seen_seconds === undefined) {
+            lastSeenEl.innerText = "--";
+        } else if (m.last_seen_seconds < 60) {
+            lastSeenEl.innerText = `${m.last_seen_seconds}s ago`;
+        } else {
+            let mins = Math.floor(m.last_seen_seconds / 60);
+            lastSeenEl.innerText = `${mins} min ago`;
+
+        }
+            let liveDot = document.getElementById("liveDot");
+
+        if (m.status === "ONLINE") {
+            liveDot.style.background = "lime";
+            liveDot.style.boxShadow = "0 0 10px lime";
+        } else {
+            liveDot.style.background = "red";
+            liveDot.style.boxShadow = "0 0 10px red";
+        }
+        
+
+        // -------- DIM CARDS WHEN OFFLINE --------
+        let cardsGrid = document.querySelector(".cards-grid");
+
+        if (m.status === "ONLINE") {
+            cardsGrid.classList.remove("offline");
+        } else {
+            cardsGrid.classList.add("offline");
+        }
+
+         }
+
+
+
+   
+    function addOfflineAlert(alerts, status, lastSeenSeconds) {
+            let isOffline =
+                String(status).trim().toUpperCase() === "OFFLINE" ||
+                Number(lastSeenSeconds) >= 60;
+
+            if (isOffline) {
+                let seenText = lastSeenSeconds >= 60
+                    ? `${Math.floor(lastSeenSeconds / 60)} min ago`
+                    : `${lastSeenSeconds ?? "--"}s ago`;
+
+                alerts.push({
+                    message: `⚠️ Device Offline / Last seen ${seenText}`,
+                    color: "red"
+                });
+
+                showToast(`⚠️ Device Offline / Last seen ${seenText}`, "danger");
+            }
+
+            return alerts;
+        }
+
+    
+
+    
+        
+
+    function showSensorAlerts(alerts) {
+            let selectedDevice = allDevices.find(d => d.device_eui === selectedDeviceEui);
+            if (!selectedDevice) return;
+
+            let alertBox = null;
+            let alertCard = null;
+
+            if (selectedDevice.device_type === "temperature_sensor") {
+                alertBox = document.getElementById("tempAlerts");
+                alertCard = document.getElementById("tempAlertCard");
+            }
+            else if (selectedDevice.device_type === "smoke_detector") {
+                alertBox = document.getElementById("smokeAlerts");
+                alertCard = document.getElementById("smokeAlertCard");
+            }
+            else {
+                alertBox = document.getElementById("acAlerts");
+                alertCard = document.getElementById("acAlertCard");
+            }
+
+            if (!alertBox || !alertCard) return;
+
+            alertBox.innerHTML = "";
+
+            if (!alerts || alerts.length === 0) {
+                alertBox.innerHTML = "<li style='color:lime'>✅ Normal</li>";
+                alertCard.style.border = "1px solid #334155";
+                alertCard.classList.remove("alert-danger");
+            } else {
+                alerts.forEach(a => {
+                    alertBox.innerHTML += `<li style="color:${a.color}">${a.message}</li>`;
+                });
+                alertCard.style.border = "2px solid red";
+                alertCard.classList.add("alert-danger");
+            }
+        }
+        
+        
+    
+
+    // -------- TABLE --------
+    async function loadTable() {
+            if (!selectedSite || !selectedDeviceEui) return;
+            let r = await fetch(`/packets?site=${selectedSite}&device_eui=${selectedDeviceEui}`)
+            let data = await r.json()
+
+            let table = document.getElementById("table-body")
+            table.innerHTML = ""
+
+            data.forEach(d => {
+            table.innerHTML += `
+<tr>
+    <td>${d.timestamp ?? ""}</td>
+
+    <td>${d.current1 ?? ""}</td>
+    <td>${d.current2 ?? ""}</td>
+    <td>${d.current3 ?? ""}</td>
+
+    <td>${d.frequency ?? ""}</td>
+
+    <td>${d.voltage1 ?? ""}</td>
+    <td>${d.voltage2 ?? ""}</td>
+    <td>${d.voltage3 ?? ""}</td>
+
+    <td>${d.power1 ?? ""}</td>
+    <td>${d.power2 ?? ""}</td>
+    <td>${d.power3 ?? ""}</td>
+
+    <td>${d.pf1 ?? ""}</td>
+    <td>${d.pf2 ?? ""}</td>
+    <td>${d.pf3 ?? ""}</td>
+
+    <td>${d.apparent1 ?? ""}</td>
+    <td>${d.apparent2 ?? ""}</td>
+    <td>${d.apparent3 ?? ""}</td>
+
+    <td>${d.total_power ?? ""}</td>
+    <td>${d.total_pf ?? ""}</td>
+    <td>${d.total_apparent ?? ""}</td>
+    <td>${d.energy ?? ""}</td>
+</tr>`;
+        })
+        applyFilters();
+    }
+    
+    
+
+    // -------- FILTER FUNCTION --------
+    function applyFilters() {
+            let startDate = document.getElementById("startDate").value;
+            let endDate = document.getElementById("endDate").value;
+            let limit = parseInt(document.getElementById("rowLimit").value);
+
+            let rows = Array.from(document.querySelectorAll("#dataTable tbody tr"));
+
+            // First: filter by date
+            let matchedRows = rows.filter(row => {
+                let dateCell = row.cells[0].innerText.trim();
+                let rowDate = dateCell.split(" ")[0];
+
+                if (startDate && rowDate < startDate) return false;
+                if (endDate && rowDate > endDate) return false;
+
+                return true;
+            });
+
+            // Hide all rows first
+            rows.forEach(row => {
+                row.style.display = "none";
+            });
+
+            // Then: show only the first N matched rows
+            matchedRows.slice(0, limit).forEach(row => {
+                row.style.display = "";
+            });
+        }
+    
+
+    // -------- RESET FILTER --------
+    function resetSensorFilter() {
+            let selectedDevice = allDevices.find(d => d.device_eui === selectedDeviceEui);
+            if (!selectedDevice) return;
+
+            if (selectedDevice.device_type === "temperature_sensor") {
+                document.getElementById("tempStartDate").value = "";
+                document.getElementById("tempEndDate").value = "";
+                document.getElementById("tempRowLimit").value = "50";
+            } else if (selectedDevice.device_type === "smoke_detector") {
+                document.getElementById("smokeStartDate").value = "";
+                document.getElementById("smokeEndDate").value = "";
+                document.getElementById("smokeRowLimit").value = "50";
+            }
+
+            filterSensorTable();
+        }
+    
+    
+
+    function getCurrentSensorTableId() {
+            let selectedDevice = allDevices.find(d => d.device_eui === selectedDeviceEui);
+
+            if (!selectedDevice) return null;
+
+            if (selectedDevice.device_type === "temperature_sensor") {
+                return "temperatureTable";
+            }
+
+            if (selectedDevice.device_type === "smoke_detector") {
+                return "smokeTable";
+            }
+
+            return "dataTable";
+        }
+
+        
+
+    function filterSensorTable() {
+            let selectedDevice = allDevices.find(d => d.device_eui === selectedDeviceEui);
+            if (!selectedDevice) return;
+
+            let tableId, startId, endId, limitId;
+
+            if (selectedDevice.device_type === "temperature_sensor") {
+                tableId = "temperatureTable";
+                startId = "tempStartDate";
+                endId = "tempEndDate";
+                limitId = "tempRowLimit";
+            } else if (selectedDevice.device_type === "smoke_detector") {
+                tableId = "smokeTable";
+                startId = "smokeStartDate";
+                endId = "smokeEndDate";
+                limitId = "smokeRowLimit";
+            } else {
+                tableId = "dataTable";
+                startId = "startDate";
+                endId = "endDate";
+                limitId = "rowLimit";
+            }
+
+            let startDate = document.getElementById(startId)?.value;
+            let endDate = document.getElementById(endId)?.value;
+            let limit = parseInt(document.getElementById(limitId)?.value || "50");
+
+            let rows = Array.from(document.querySelectorAll(`#${tableId} tbody tr`));
+
+            let matchedRows = rows.filter(row => {
+                let dateCell = row.cells[0]?.innerText.trim();
+                let rowDate = dateCell?.split(" ")[0];
+
+                if (startDate && rowDate < startDate) return false;
+                if (endDate && rowDate > endDate) return false;
+
+                return true;
+            });
+
+            rows.forEach(row => row.style.display = "none");
+            matchedRows.slice(0, limit).forEach(row => row.style.display = "");
+        }
+
+    
+    
+
+    // -------- CSV DOWNLOAD --------
+    function downloadCSV() {
+            let visibleRows = Array.from(document.querySelectorAll("#dataTable tr"))
+                .filter(row => row.style.display !== "none");
+
+            let csv = [];
+
+            visibleRows.forEach(row => {
+                let cols = row.querySelectorAll("td, th");
+                let rowData = Array.from(cols).map(col => {
+                    let text = col.innerText.replace(/"/g, '""');
+                    return `"${text}"`;
+                });
+                csv.push(rowData.join(","));
+            });
+
+            let blob = new Blob([csv.join("\n")], { type: "text/csv" });
+            let a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "filtered_data.csv";
+            a.click();
+        }
+
+
+
+
+    function downloadCurrentCSV() {
+            let selectedDevice = allDevices.find(d => d.device_eui === selectedDeviceEui);
+            if (!selectedDevice) return;
+
+            if (selectedDevice.device_type === "temperature_sensor") {
+                downloadTableAsCSV("temperatureTable", "temperature_readings.csv");
+            } else if (selectedDevice.device_type === "smoke_detector") {
+                downloadTableAsCSV("smokeTable", "smoke_readings.csv");
+            } else {
+                downloadTableAsCSV("dataTable", "energy_readings.csv");
+            }
+        }
+
+        function downloadTableAsCSV(tableId, filename) {
+                let table = document.getElementById(tableId);
+                if (!table) return;
+
+                let rows = Array.from(table.querySelectorAll("tr"))
+                    .filter(row => row.style.display !== "none");
+
+                let csv = [];
+
+                rows.forEach(row => {
+                    let cols = row.querySelectorAll("th, td");
+                    let rowData = [];
+
+                    cols.forEach(col => {
+                        let text = col.innerText.replace(/"/g, '""');
+                        rowData.push(`"${text}"`);
+                    });
+
+                    csv.push(rowData.join(","));
+                });
+
+                let blob = new Blob([csv.join("\n")], { type: "text/csv" });
+                let link = document.createElement("a");
+
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.click();
+            }
+
+
+
+    // -------- LOAD ALERT HISTORY --------
+    async function loadAlertHistory() {
+            if (!selectedSite || !selectedDeviceEui) return;
+            let r = await fetch(`/alert_history?site=${selectedSite}&device_eui=${selectedDeviceEui}`)
+            let data = await r.json();
+
+            let table = document.getElementById("alert-history-body");
+            table.innerHTML = "";
+
+            data.forEach(a => {
+                let color = "orange";
+
+                if (a.severity === "critical") {
+                    color = "red";
+                } else if (a.severity === "info") {
+                    color = "lime";
+                }
+
+                table.innerHTML += `
+<tr>
+    <td>${a.timestamp ?? ""}</td>
+    <td style="color:${color}">${a.message ?? ""}</td>
+    <td style="color:${color}">${a.severity ?? ""}</td>
+</tr>`;
+            });
+        }
+
+
+
+    function clearAllDashboards() {
+
+            // -------- AC METER VALUES --------
+            ["v1", "v2", "v3", "c1", "c2", "c3", "freq", "tp"].forEach(id => {
+                let el = document.getElementById(id);
+                if (el) el.innerText = "--";
+            });
+
+            // clear sparklines
+            [
+                "spark-v1", "spark-v2", "spark-v3",
+                "spark-c1", "spark-c2", "spark-c3",
+                "spark-freq", "spark-tp",
+                "spark-temp", "spark-humidity", "spark-battery"
+            ].forEach(id => {
+                let canvas = document.getElementById(id);
+                if (canvas) {
+                    let ctx = canvas.getContext("2d");
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            });
+
+            // -------- TEMP VALUES --------
+            ["tempValue", "humidityValue", "batteryValue", "movementValue"].forEach(id => {
+                let el = document.getElementById(id);
+                if (el) el.innerText = "--";
+            });
+
+            // -------- SMOKE VALUES --------
+            ["faultAlarm", "smokeAlarm", "tamperAlarm", "voltageAlarm"].forEach(id => {
+                let el = document.getElementById(id);
+                if (el) el.innerText = "--";
+            });
+
+            // -------- ALERT BOXES --------
+            ["tempAlerts", "smokeAlerts", "acAlerts"].forEach(id => {
+                let el = document.getElementById(id);
+                if (el) el.innerHTML = "<li style='color:lime'>✅ Normal</li>";
+            });
+
+            // -------- TABLES --------
+            ["table-body", "temperature-table-body", "smoke-table-body", "alert-history-body"].forEach(id => {
+                let el = document.getElementById(id);
+                if (el) el.innerHTML = "";
+            });
+        }
+
+
+
+
+    
+    function switchDashboardByDeviceType(type) {
+            let ac = document.getElementById("acMeterDashboard");
+            let temp = document.getElementById("temperatureDashboard");
+            let smoke = document.getElementById("smokeDashboard");
+            let generic = document.getElementById("genericDashboard");
+
+            clearAllDashboards();
+
+            [ac, temp, smoke, generic].forEach(d => {
+                if (d) d.style.display = "none";
+            });
+
+            if (type === "ac_meter_generator" || type === "ac_meter_grid") {
+                ac.style.display = "block";
+            }
+            else if (type === "temperature_sensor") {
+                temp.style.display = "block";
+            }
+            else if (type === "smoke_detector") {
+                smoke.style.display = "block";
+            }
+            else {
+                generic.style.display = "block";
+            }
+        }
+
+
+
+
+
+    function refreshSelectedDevice() {
+        let selectedDevice = allDevices.find(d => d.device_eui === selectedDeviceEui);
+        if (!selectedDevice) return;
+
+        if (selectedDevice.device_type === "temperature_sensor") {
+            loadTemperatureData();
+        } else if (selectedDevice.device_type === "smoke_detector") {
+            loadSmokeData();
+        } else {
+            loadMetrics();
+            loadTable();
+            loadAlertHistory();
+        }
+    }
+
+
+
+
+    function updateBadge(id, text, type) {
+            let badge = document.getElementById(id);
+            if (!badge) return;
+
+            badge.innerText = text;
+            badge.classList.remove("normal-badge", "warning-badge", "danger-badge");
+            badge.classList.add(type);
+        }
+
+
+
+
+    function animateValue(id, newValue, decimals = 1) {
+            let el = document.getElementById(id);
+            let start = parseFloat(el.innerText) || 0;
+            let end = parseFloat(newValue) || 0;
+            let duration = 500;
+            let startTime = null;
+
+            function step(timestamp) {
+                if (!startTime) startTime = timestamp;
+                let progress = Math.min((timestamp - startTime) / duration, 1);
+                let value = start + (end - start) * progress;
+                el.innerText = value.toFixed(decimals);
+
+                if (progress < 1) requestAnimationFrame(step);
+            }
+
+            requestAnimationFrame(step);
+        }
+
+
+
+
+
+   // -------- AUTO REFRESH --------
+    let summaryTimer = null;
+
+    async function startDashboard() {
+        await loadDevices();
+
+        if (!selectedSite || !selectedDeviceEui) {
+            console.log("No device selected yet");
+            return;
+        }
+
+        runCurrentDashboard();
+        
+
+        if (dashboardTimer) clearInterval(dashboardTimer);
+        if (summaryTimer) clearInterval(summaryTimer);
+
+        dashboardTimer = setInterval(() => {
+            runCurrentDashboard();
+        }, 2000);
+
+        summaryTimer = setInterval(() => {
+            updateSiteSummary();
+        }, 10000);
+    }
+
+    function runCurrentDashboard() {
+        let selectedDevice = allDevices.find(d => d.device_eui === selectedDeviceEui);
+        if (!selectedDevice) return;
+
+        if (selectedDevice.device_type === "temperature_sensor") {
+            loadTemperatureData();
+        } else if (selectedDevice.device_type === "smoke_detector") {
+            loadSmokeData();
+        } else {
+            loadMetrics();
+            loadTable();
+            loadAlertHistory();
+        }
+    }
+
+    startDashboard();
+</script>

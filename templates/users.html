@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>User Management</title>
+    <style>
+        body {
+            font-family: Arial;
+            background:
+                linear-gradient(rgba(15, 23, 42, .94), rgba(15, 23, 42, .94)),
+                repeating-linear-gradient(90deg,
+                    rgba(0, 255, 255, 0.03) 0px,
+                    rgba(0, 255, 255, 0.03) 1px,
+                    transparent 1px,
+                    transparent 40px),
+                repeating-linear-gradient(0deg,
+                    rgba(0, 255, 255, 0.03) 0px,
+                    rgba(0, 255, 255, 0.03) 1px,
+                    transparent 1px,
+                    transparent 40px);
+            color: white;
+            margin: 0;
+            padding: 40px;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .admin-title {
+            font-size: 52px;
+            font-weight: bold;
+            color: #a855f7;
+            text-shadow: 0 0 20px #a855f7;
+        }
+
+        .top-actions a {
+            text-decoration: none;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+            color: white;
+        }
+
+        .back-btn {
+            background: #2563eb;
+        }
+
+        .logout-btn {
+            background: #ef4444;
+        }
+
+        .panel {
+            background: #1e293b;
+            padding: 25px;
+            border-radius: 20px;
+            width: 450px;
+            box-shadow: 0 0 20px rgba(168, 85, 247, .2);
+            margin-bottom: 30px;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px;
+            margin-bottom: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: #22c55e;
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #16a34a;
+        }
+
+        .users-card {
+            background: #1e293b;
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, .1);
+        }
+
+        .users-card h2 {
+            margin-top: 0;
+            color: #38bdf8;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            padding: 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, .08);
+            text-align: left;
+        }
+
+        th {
+            color: #94a3b8;
+        }
+
+        .delete-btn {
+            background: #ef4444;
+            padding: 8px 14px;
+            border-radius: 8px;
+            text-decoration: none;
+            color: white;
+            font-size: 14px;
+        }
+
+        .msg {
+            color: lime;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="topbar">
+        <div class="admin-title">👤 Admin Control Center</div>
+
+        <div class="top-actions">
+            <a href="/" class="back-btn">← Dashboard</a>
+            <a href="/logout" class="logout-btn">Logout</a>
+        </div>
+    </div>
+
+    <div class="panel">
+        {% if message %}
+        <div class="msg">{{ message }}</div>
+        {% endif %}
+
+        <form method="POST">
+            <input type="text" name="username" placeholder="New Username" required>
+            <input type="password" name="password" placeholder="Password" required>
+            <select name="role" required
+                style="width:100%;padding:14px;margin-bottom:15px;border:none;border-radius:10px;font-size:16px;">
+                <option value="viewer">Viewer</option>
+                <option value="operator">Operator</option>
+                <option value="admin">Admin</option>
+            </select>
+            <button type="submit">Add User</button>
+        </form>
+    </div>
+
+    <div class="users-card">
+        <h2>Existing Users</h2>
+
+        <table>
+            <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Action</th>
+            </tr>
+
+            {% for u in users %}
+            <tr>
+                <td>{{ u[0] }}</td>
+                <td>{{ u[1] }}</td>
+                <td>{{ u[2] }}</td>
+                
+                <td>
+                    {% if u[1] != 'admin' %}
+                    <a href="/delete_user/{{u[0]}}" class="delete-btn">Delete</a>
+                    {% else %}
+                    Protected
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+</body>
+
+</html>
