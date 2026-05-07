@@ -15,12 +15,14 @@ from decoders import decode_payload, decode_temperature_payload, decode_smoke_pa
 from mqtt_handler import mqtt_listener
 from udp_handler import udp_listener
 import base64
+import os
 
 app = Flask(__name__)
 init_db()
 init_users_table()
 packets = []
 app.secret_key = "change-this-secret-key"
+API_KEY = os.getenv("API_KEY", "test123")
 register_auth_routes(app)
 register_admin_routes(app)
 
@@ -46,8 +48,7 @@ register_admin_routes(app)
 @app.route("/api/telemetry", methods=["POST"])
 def api_telemetry():
     api_key = request.headers.get("X-API-Key")
-
-    if api_key != "test123":
+    if api_key != API_KEY:
         return jsonify({"error": "Unauthorized"}), 401
 
     packet = request.get_json()
