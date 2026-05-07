@@ -14,6 +14,7 @@ from admin import register_admin_routes
 from decoders import decode_payload, decode_temperature_payload, decode_smoke_payload
 from mqtt_handler import mqtt_listener
 from udp_handler import udp_listener
+import base64
 
 app = Flask(__name__)
 init_db()
@@ -29,12 +30,77 @@ register_admin_routes(app)
 
 
 # ---------------- THREADS ----------------
-threading.Thread(target=udp_listener, daemon=True).start()
-threading.Thread(target=mqtt_listener, daemon=True).start()
+# threading.Thread(target=udp_listener, daemon=True).start()
+# threading.Thread(target=mqtt_listener, daemon=True).start()
+
+
+
+
+
+
+
 
 
 
 # ---------------- ROUTES ----------------
+@app.route("/api/telemetry", methods=["POST"])
+def api_telemetry():
+    api_key = request.headers.get("X-API-Key")
+
+    if api_key != "test123":
+        return jsonify({"error": "Unauthorized"}), 401
+
+    packet = request.get_json()
+
+    site = packet.get("site", "UNKNOWN_SITE")
+    device_name = packet.get("device_name", "UNKNOWN_DEVICE")
+    device_type = packet.get("device_type", "unknown")
+    device_eui = packet.get("device_eui", "UNKNOWN_EUI")
+    payload = packet.get("payload")
+
+    if payload is None:
+        return jsonify({"error": "No payload found"}), 400
+
+    if device_type in ["ac_meter_generator", "ac_meter_grid"]:
+        payload += "=" * (-len(payload) % 4)
+        raw_bytes = base64.b64decode(payload)
+        hex_payload = raw_bytes.hex()
+        decoded = decode_payload(hex_payload)
+
+    elif device_type == "temperature_sensor":
+        decoded = decode_temperature_payload(payload)
+
+    elif device_type == "smoke_detector":
+        decoded = decode_smoke_payload(payload)
+
+    else:
+        decoded = {"raw_payload": payload}
+
+    insert_data(
+        site,
+        device_name,
+        device_type,
+        device_eui,
+        "HTTP_API",
+        None,
+        None,
+        str(decoded),
+        None
+    )
+
+    return jsonify({
+        "status": "success",
+        "decoded": decoded
+    })
+
+
+
+
+
+
+
+
+
 @app.route("/smoke_data")
 def smoke_data():
     site = request.args.get("site")
