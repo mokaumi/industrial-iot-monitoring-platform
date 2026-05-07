@@ -128,7 +128,51 @@ Username: admin
 Password: admin123
 
 
+---
+
+## Live Demo
+
+Deployed application:
+
+```text
+https://industrial-iot-monitoring-platform-production.up.railway.app
+
+
+
+HTTP Telemetry Ingestion API
+
+The platform supports secure HTTP telemetry ingestion through:
+
+POST /api/telemetry
+
+Example temperature sensor test:
+
+curl -X POST https://industrial-iot-monitoring-platform-production.up.railway.app/api/telemetry \
+-H "Content-Type: application/json" \
+-H "X-API-Key: YOUR_API_KEY" \
+-d '{
+  "site":"TEST",
+  "device_name":"Cold Room",
+  "device_type":"temperature_sensor",
+  "device_eui":"TEMP001",
+  "payload":"MDAxLDAwMixURU1QMDAxLDAwNCwwMDUsMSwwLDIyLjUsNjUuMCxOLDMuNw=="
+}'
+
+Successful response:
+
+{
+  "status": "success",
+  "decoded": {
+    "temperature": 22.5,
+    "humidity": 65.0,
+    "battery": 3.7
+  }
+}
+
+
+
 Future Enhancements
+
 Cloud deployment
 REST API token authentication
 AI anomaly detection
