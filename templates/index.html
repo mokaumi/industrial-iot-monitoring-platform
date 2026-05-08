@@ -603,6 +603,69 @@ body::after {
 
 
 
+#aiHealthCard {
+    border-left: 5px solid #38bdf8;
+    box-shadow: 0 0 14px rgba(56,189,248,0.25);
+}
+
+#anomalyLevel.normal {
+    color: #22c55e;
+}
+
+#anomalyLevel.low {
+    color: #84cc16;
+}
+
+#anomalyLevel.medium {
+    color: #f59e0b;
+}
+
+#anomalyLevel.high {
+    color: #ef4444;
+}
+
+
+
+
+#aiHealthCard {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 25px;
+    padding: 18px 25px;
+    border-left: 5px solid #38bdf8;
+    box-shadow: 0 0 14px rgba(56,189,248,0.25);
+}
+
+.ai-health-main {
+    display: flex;
+    align-items: center;
+    gap: 25px;
+}
+
+.ai-score {
+    font-size: 28px;
+    font-weight: bold;
+}
+
+#anomalyReasons {
+    margin: 0;
+}
+
+
+
+#aiHealthCard.normal {
+    border-left-color: #22c55e;
+}
+
+#aiHealthCard.warning {
+    border-left-color: #f59e0b;
+}
+
+#aiHealthCard.danger {
+    border-left-color: #ef4444;
+}
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -683,6 +746,19 @@ body::after {
     Last Seen: <span id="lastSeen">--</span> <span id="liveDot"></span>
 </div>
 
+
+
+<div class="card" id="aiHealthCard">
+    <div>
+        <h3>🧠 AI Health Score</h3>
+    </div>
+
+    <div class="ai-health-main">
+        <div>Score: <span id="anomalyScore" class="ai-score">--</span>/100</div>
+        <div>Level: <span id="anomalyLevel">--</span></div>
+        <ul id="anomalyReasons"></ul>
+    </div>
+</div>
 
 
 <div class="selector-bar">
@@ -1015,6 +1091,49 @@ body::after {
     let dashboardTimer = null;
     let lastToastMessage = "";
     let lastToastTime = 0;
+
+
+
+
+
+    function updateAIHealth(m) {
+            document.getElementById("anomalyScore").innerText = m.anomaly_score ?? "--";
+
+            let levelEl = document.getElementById("anomalyLevel");
+            let reasonsEl = document.getElementById("anomalyReasons");
+
+            let level = (m.anomaly_level || "NORMAL").toLowerCase();
+
+            levelEl.innerText = m.anomaly_level || "NORMAL";
+            levelEl.className = "";
+            levelEl.classList.add(level);
+
+            reasonsEl.innerHTML = "";
+
+            if (!m.anomaly_reasons || m.anomaly_reasons.length === 0) {
+                reasonsEl.innerHTML = "<li style='color:lime'>✅ No anomaly detected</li>";
+            } else {
+                m.anomaly_reasons.forEach(reason => {
+                    reasonsEl.innerHTML += `<li style="color:orange">${reason}</li>`;
+                });
+            }
+
+            let card = document.getElementById("aiHealthCard");
+            card.classList.remove("normal", "warning", "danger");
+
+            if (m.anomaly_level === "HIGH") {
+                card.classList.add("danger");
+            } else if (m.anomaly_level === "MEDIUM") {
+                card.classList.add("warning");
+            } else {
+                card.classList.add("normal");
+            }
+        }
+
+
+
+
+
 
 
     async function loadDevices() {
@@ -1613,6 +1732,7 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
 
             let r = await fetch(`/temperature_data?site=${selectedSite}&device_eui=${selectedDeviceEui}`);
             let m = await r.json();
+            updateAIHealth(m);
             console.log("TEMP STATUS:", m.status, "LAST SEEN:", m.last_seen_seconds);
 
             let temps = m.temperature || [];
@@ -1746,6 +1866,7 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
 
             let r = await fetch(`/smoke_data?site=${selectedSite}&device_eui=${selectedDeviceEui}`);
             let m = await r.json();
+            updateAIHealth(m);
 
             let timestamps = m.timestamps || [];
             let fault = m.fault_alarm || [];
@@ -1893,7 +2014,8 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
     async function loadMetrics() {
         if (!selectedSite || !selectedDeviceEui) return;
         let r = await fetch(`/data?site=${selectedSite}&device_eui=${selectedDeviceEui}`)
-        let m = await r.json()
+        let m = await r.json();
+        updateAIHealth(m);
 
         const MAX_POINTS = 50;
         let start = Math.max(0, m.voltage1.length - MAX_POINTS);

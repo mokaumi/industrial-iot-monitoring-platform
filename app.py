@@ -16,6 +16,9 @@ from mqtt_handler import mqtt_listener
 from udp_handler import udp_listener
 import base64
 import os
+from anomaly import analyze_temperature, analyze_smoke, analyze_ac_meter
+
+
 
 app = Flask(__name__)
 init_db()
@@ -143,6 +146,19 @@ def smoke_data():
 
         except Exception as e:
             print("Smoke status error:", e)
+
+    if len(data["timestamps"]) > 0:
+        anomaly = analyze_smoke(
+            fault=data["fault_alarm"][-1],
+            smoke=data["smoke_alarm"][-1],
+            tamper=data["tamper_alarm"][-1],
+            voltage=data["voltage_alarm"][-1],
+            status=data["status"]
+        )
+    else:
+        anomaly = analyze_smoke(status="OFFLINE")
+
+    data.update(anomaly)
 
     return jsonify(data)
 
@@ -323,14 +339,26 @@ def data():
     print("Last 10 pf1:", data["pf1"][-10:])
     print("Last 10 apparent1:", data["apparent1"][-10:])
     print("Last 10 frequency:", data["frequency"][-10:])
+
+    if len(data["timestamps"]) > 0:
+        anomaly = analyze_ac_meter(
+            voltage1=data["voltage1"][-1],
+            current1=data["current1"][-1],
+            frequency=data["frequency"][-1],
+            pf1=data["pf1"][-1],
+            status=status
+        )
+    else:
+        anomaly = analyze_ac_meter(status="OFFLINE")
+
     return jsonify({
         **data,
         "status": status,
         "alerts": alerts,
-    "last_seen_seconds": last_seen_seconds
+        "last_seen_seconds": last_seen_seconds,
+        **anomaly
     })
-
-        
+            
 
 @app.route("/packets")
 def get_packets():
@@ -647,6 +675,18 @@ def temperature_data():
 
         except Exception as e:
             print("Temperature status error:", e)
+
+    if len(data["timestamps"]) > 0:
+        anomaly = analyze_temperature(
+            temperature=data["temperature"][-1],
+            humidity=data["humidity"][-1],
+            battery=data["battery"][-1],
+            status=data["status"]
+        )
+    else:
+        anomaly = analyze_temperature(status="OFFLINE")
+
+    data.update(anomaly)
 
     return jsonify(data)
 
