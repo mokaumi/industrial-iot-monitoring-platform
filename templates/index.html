@@ -761,6 +761,26 @@ body::after {
 </div>
 
 
+
+<div class="card">
+    <h3>🚨 Recent AI Incidents</h3>
+
+    <table style="width:100%; border-collapse:collapse;">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Device</th>
+                <th>Level</th>
+                <th>Score</th>
+                <th>Reason</th>
+            </tr>
+        </thead>
+
+        <tbody id="anomalyTableBody"></tbody>
+    </table>
+</div>
+
+
 <div class="selector-bar">
     <label for="siteSelect">Site:</label>
     <select id="siteSelect" onchange="onSiteChange()"></select>
@@ -1091,6 +1111,42 @@ body::after {
     let dashboardTimer = null;
     let lastToastMessage = "";
     let lastToastTime = 0;
+
+
+
+
+
+    async function loadAnomalyHistory() {
+
+            let r = await fetch("/anomaly_history");
+            let data = await r.json();
+
+            let body = document.getElementById("anomalyTableBody");
+
+            body.innerHTML = "";
+
+            data.forEach(a => {
+
+                let color = "lime";
+
+                if (a.level === "HIGH") {
+                    color = "#ef4444";
+                } else if (a.level === "MEDIUM") {
+                    color = "#f59e0b";
+                }
+
+                body.innerHTML += `
+        <tr>
+            <td>${a.timestamp}</td>
+            <td>${a.device_eui}</td>
+            <td style="color:${color}; font-weight:bold;">
+                ${a.level}
+            </td>
+            <td>${a.score}</td>
+            <td>${a.reason}</td>
+        </tr>`;
+            });
+        }
 
 
 
@@ -2720,6 +2776,9 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
             loadAlertHistory();
         }
     }
+
+    loadAnomalyHistory();
+    setInterval(loadAnomalyHistory, 10000);
 
     startDashboard();
 </script>

@@ -22,6 +22,26 @@ def init_db():
     )
     """)
 
+
+
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS anomaly_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        site TEXT,
+        device_eui TEXT,
+        device_type TEXT,
+        anomaly_score INTEGER,
+        anomaly_level TEXT,
+        anomaly_reason TEXT,
+        timestamp DATETIME
+    )
+    """)
+
+
+
+
+
     conn.commit()
     conn.close()
 
@@ -169,3 +189,70 @@ def delete_user_by_id(user_id):
         conn.commit()
 
     conn.close()
+
+
+
+def insert_anomaly_event(site, device_eui, device_type, anomaly_score, anomaly_level, anomaly_reason):
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    INSERT INTO anomaly_events (
+        site, device_eui, device_type,
+        anomaly_score, anomaly_level, anomaly_reason, timestamp
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        site,
+        device_eui,
+        device_type,
+        anomaly_score,
+        anomaly_level,
+        anomaly_reason,
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def recent_anomaly_exists(device_eui, anomaly_level, minutes=5):
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT timestamp FROM anomaly_events
+    WHERE device_eui = ?
+    AND anomaly_level = ?
+    ORDER BY id DESC
+    LIMIT 1
+    """, (device_eui, anomaly_level))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return False
+
+    last_time = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
+    diff = (datetime.now() - last_time).total_seconds()
+
+    return diff < minutes * 60
+
+
+def get_recent_anomaly_events(limit=30):
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT site, device_eui, device_type, anomaly_score,
+           anomaly_level, anomaly_reason, timestamp
+    FROM anomaly_events
+    ORDER BY id DESC
+    LIMIT ?
+    """, (limit,))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return rows

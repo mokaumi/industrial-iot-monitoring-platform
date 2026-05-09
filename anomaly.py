@@ -1,6 +1,9 @@
-def analyze_temperature(temperature=None, humidity=None, battery=None, status="ONLINE"):
+def analyze_temperature(temperature=None, humidity=None, battery=None, status="ONLINE", temp_history=None):
     score = 0
     reasons = []
+
+    if temp_history is None:
+        temp_history = []
 
     if status == "OFFLINE":
         score += 40
@@ -13,6 +16,20 @@ def analyze_temperature(temperature=None, humidity=None, battery=None, status="O
         elif temperature < 10:
             score += 25
             reasons.append("Low temperature")
+
+    if len(temp_history) >= 5 and temperature is not None:
+        previous_values = [t for t in temp_history[-5:-1] if t is not None]
+
+        if previous_values:
+            avg_temp = sum(previous_values) / len(previous_values)
+            change = temperature - avg_temp
+
+            if change >= 8:
+                score += 30
+                reasons.append(f"Sudden temperature rise (+{change:.1f}°C)")
+            elif change <= -8:
+                score += 20
+                reasons.append(f"Sudden temperature drop ({change:.1f}°C)")
 
     if humidity is not None and humidity > 85:
         score += 20
@@ -86,7 +103,7 @@ def analyze_ac_meter(voltage1=None, current1=None, frequency=None, pf1=None, sta
 def build_result(score, reasons):
     score = min(score, 100)
 
-    if score >= 70:
+    if score >= 60:
         level = "HIGH"
     elif score >= 35:
         level = "MEDIUM"

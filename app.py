@@ -7,7 +7,8 @@ import json
 from datetime import datetime
 from database import (
     init_db, insert_data, get_all_data, get_data_by_device, get_devices,
-    init_users_table, get_user_by_username, create_user, get_all_users, delete_user_by_id
+    init_users_table, get_user_by_username, create_user, get_all_users,
+    delete_user_by_id, insert_anomaly_event, recent_anomaly_exists, get_recent_anomaly_events
 )
 from auth import register_auth_routes, require_role
 from admin import register_admin_routes
@@ -48,6 +49,32 @@ register_admin_routes(app)
 
 
 # ---------------- ROUTES ----------------
+@app.route("/anomaly_history")
+def anomaly_history():
+    check = require_role("admin", "operator", "viewer")
+    if check:
+        return check
+
+    rows = get_recent_anomaly_events()
+
+    data = []
+    for r in rows:
+        data.append({
+            "site": r[0],
+            "device_eui": r[1],
+            "device_type": r[2],
+            "score": r[3],
+            "level": r[4],
+            "reason": r[5],
+            "timestamp": r[6]
+        })
+
+    return jsonify(data)
+
+
+
+
+
 @app.route("/api/telemetry", methods=["POST"])
 def api_telemetry():
     api_key = request.headers.get("X-API-Key")
@@ -681,12 +708,36 @@ def temperature_data():
             temperature=data["temperature"][-1],
             humidity=data["humidity"][-1],
             battery=data["battery"][-1],
-            status=data["status"]
-        )
+            status=data["status"],
+            temp_history=data["temperature"]
+)
     else:
         anomaly = analyze_temperature(status="OFFLINE")
 
     data.update(anomaly)
+
+    
+    reason_text = anomaly["anomaly_level"]
+
+    if anomaly["anomaly_level"] == "HIGH":
+
+        
+        already_exists = recent_anomaly_exists(
+            device_eui,
+            anomaly["anomaly_level"],
+            minutes=5
+        )
+
+        if not already_exists:
+            insert_anomaly_event(
+                site,
+                device_eui,
+                "temperature_sensor",
+                anomaly["anomaly_score"],
+                anomaly["anomaly_level"],
+                ", ".join(anomaly["anomaly_reasons"])
+            )
+
 
     return jsonify(data)
 
