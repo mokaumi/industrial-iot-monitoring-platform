@@ -256,3 +256,23 @@ def get_recent_anomaly_events(limit=30):
     conn.close()
 
     return rows
+
+
+def get_device_anomaly_stats(device_eui):
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT COUNT(*), MAX(timestamp)
+    FROM anomaly_events
+    WHERE device_eui = ?
+    """, (device_eui,))
+
+    row = cursor.fetchone()
+
+    conn.close()
+
+    return {
+        "total_anomalies": row[0] or 0,
+        "last_anomaly": row[1]
+    }

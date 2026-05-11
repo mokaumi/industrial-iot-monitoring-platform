@@ -7,4 +7,6 @@ Jinja2==3.1.6
 MarkupSafe==3.0.3
 packaging==26.2
 paho-mqtt==2.1.0
+pymodbus==3.13.0
+pyModbusTCP==0.3.0
 Werkzeug==3.1.6

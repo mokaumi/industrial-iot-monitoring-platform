@@ -103,11 +103,11 @@ def analyze_ac_meter(voltage1=None, current1=None, frequency=None, pf1=None, sta
 def build_result(score, reasons):
     score = min(score, 100)
 
-    if score >= 60:
+    if score >= 80:
         level = "HIGH"
-    elif score >= 35:
+    elif score >= 50:
         level = "MEDIUM"
-    elif score > 0:
+    elif score >= 20:
         level = "LOW"
     else:
         level = "NORMAL"
@@ -116,4 +116,47 @@ def build_result(score, reasons):
         "anomaly_score": score,
         "anomaly_level": level,
         "anomaly_reasons": reasons
+    }
+
+
+def predict_temperature_trend(temp_history, minutes_ahead=15):
+    values = [t for t in temp_history if t is not None]
+
+    if len(values) < 3:
+        return {
+            "predicted_temperature": None,
+            "prediction_risk": "UNKNOWN",
+            "prediction_message": "Not enough data for prediction"
+        }
+
+    recent = values[-5:]
+
+    first = recent[0]
+    last = recent[-1]
+
+    rate_per_reading = (last - first) / max(1, len(recent) - 1)
+
+    predicted = last + (rate_per_reading * 3)
+
+    if predicted >= 40:
+        risk = "HIGH"
+        message = "Temperature may reach unsafe level soon"
+    elif predicted >= 35:
+        risk = "MEDIUM"
+        message = "Temperature is trending upward"
+    else:
+        risk = "LOW"
+        message = "Temperature trend is stable"
+
+    forecast_values = [
+        round(last + (rate_per_reading * 1), 1),
+        round(last + (rate_per_reading * 2), 1),
+        round(last + (rate_per_reading * 3), 1)
+    ]
+
+    return {
+        "predicted_temperature": round(predicted, 1),
+        "prediction_risk": risk,
+        "prediction_message": message,
+        "forecast_values": forecast_values
     }

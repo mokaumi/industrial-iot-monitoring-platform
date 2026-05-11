@@ -666,6 +666,49 @@ body::after {
     border-left-color: #ef4444;
 }
 
+
+
+#deviceHealthCard {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 25px;
+    padding: 18px 25px;
+    box-shadow: 0 0 14px rgba(239,68,68,0.2);
+}
+
+.device-health-main {
+    display: flex;
+    align-items: center;
+    gap: 35px;
+    flex-wrap: wrap;
+}
+
+.health-number {
+    font-size: 28px;
+    font-weight: bold;
+}
+
+
+
+#reliabilityLevel.good {
+    color: #22c55e;
+}
+
+#reliabilityLevel.fair {
+    color: #f59e0b;
+}
+
+#reliabilityLevel.poor {
+    color: #ef4444;
+}
+
+
+#tempChart {
+    height: 320px !important;
+}
+
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -760,6 +803,30 @@ body::after {
     </div>
 </div>
 
+
+<div class="card" id="predictionCard">
+    <h3>🔮 Predictive Temperature AI</h3>
+
+    <div class="device-health-main">
+        <div>Predicted Temp: <span id="predictedTemp" class="health-number">--</span> °C</div>
+        <div>Risk: <span id="predictionRisk">--</span></div>
+        <div>Message: <span id="predictionMessage">--</span></div>
+    </div>
+</div>
+
+
+
+
+<div class="card" id="deviceHealthCard">
+    <h3>🛠 Device Reliability</h3>
+
+    <div class="device-health-main">
+        <div>Score: <span id="reliabilityScore" class="health-number">--</span>/100</div>
+        <div>Level: <span id="reliabilityLevel">--</span></div>
+        <div>Anomalies: <span id="totalAnomalies">--</span></div>
+        <div>Last Incident: <span id="lastAnomaly">--</span></div>
+    </div>
+</div>
 
 
 <div class="card">
@@ -965,6 +1032,8 @@ body::after {
         <ul id="tempAlerts"></ul>
     </div>
 
+
+
     <div class="grid">
         <div class="card">
             <h3>Temperature Trend</h3>
@@ -1111,6 +1180,142 @@ body::after {
     let dashboardTimer = null;
     let lastToastMessage = "";
     let lastToastTime = 0;
+    let tempChart;
+
+
+
+
+
+
+
+    function updatePrediction(m) {
+            document.getElementById("predictedTemp").innerText =
+                m.predicted_temperature ?? "--";
+
+            let riskEl = document.getElementById("predictionRisk");
+            riskEl.innerText = m.prediction_risk ?? "--";
+
+            document.getElementById("predictionMessage").innerText =
+                m.prediction_message ?? "--";
+
+            riskEl.classList.remove("good", "fair", "poor");
+
+            let card = document.getElementById("predictionCard");
+            card.style.borderLeft = "5px solid #22c55e";
+
+            if (m.prediction_risk === "MEDIUM") {
+                riskEl.classList.add("fair");
+                card.style.borderLeft = "5px solid #f59e0b";
+            }
+            else if (m.prediction_risk === "HIGH") {
+                riskEl.classList.add("poor");
+                card.style.borderLeft = "5px solid #ef4444";
+            }
+            else {
+                riskEl.classList.add("good");
+            }
+        }
+
+
+       
+
+    function renderTemperatureChart(timestamps, temperatures, forecastValues = []) {
+
+            let ctx = document.getElementById("tempChart");
+
+            if (tempChart) {
+                tempChart.destroy();
+            }
+
+            let forecastLabels = ["Forecast +1", "Forecast +2", "Forecast +3"];
+
+            let allLabels = [...timestamps, ...forecastLabels];
+
+            let actualData = [...temperatures, null, null, null];
+
+            let forecastData = [
+                ...Array(temperatures.length - 1).fill(null),
+                temperatures[temperatures.length - 1],
+                ...(forecastValues || [])
+            ];
+
+            tempChart = new Chart(ctx, {
+                type: "line",
+                data: {
+                    labels: allLabels,
+                    datasets: [
+                        {
+                            label: "Actual Temperature °C",
+                            data: actualData,
+                            borderColor: "#22c55e",
+                            backgroundColor: "rgba(34,197,94,0.2)",
+                            tension: 0.3
+                        },
+                        {
+                            label: "Predicted Temperature °C",
+                            data: forecastData,
+                            borderColor: "#f59e0b",
+                            backgroundColor: "rgba(245,158,11,0.15)",
+                            borderDash: [8, 6],
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+    
+
+
+
+
+    async function loadDeviceHealth() {
+
+            if (!selectedDeviceEui) return;
+
+            let r = await fetch(`/device_health?device_eui=${selectedDeviceEui}`);
+            let h = await r.json();
+
+            document.getElementById("reliabilityScore").innerText =
+                h.reliability_score ?? "--";
+
+            let levelEl = document.getElementById("reliabilityLevel");
+
+            levelEl.innerText = h.reliability_level ?? "--";
+
+            levelEl.classList.remove("good", "fair", "poor");
+
+            if (h.reliability_level === "GOOD") {
+                levelEl.classList.add("good");
+            }
+            else if (h.reliability_level === "WATCH") {
+                levelEl.classList.add("fair");
+            }
+            else if (h.reliability_level === "POOR") {
+                levelEl.classList.add("poor");
+            }
+
+            document.getElementById("totalAnomalies").innerText =
+                h.total_anomalies ?? "--";
+
+            document.getElementById("lastAnomaly").innerText =
+                h.last_anomaly ?? "--";
+
+            let card = document.getElementById("deviceHealthCard");
+
+            card.style.borderLeft = "5px solid lime";
+
+            if (h.reliability_level === "WATCH") {
+                card.style.borderLeft = "5px solid orange";
+            }
+
+            if (h.reliability_level === "POOR") {
+                card.style.borderLeft = "5px solid red";
+            }
+        }
 
 
 
@@ -1630,7 +1835,7 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
 })
 
 
-    const tempChart = new Chart(document.getElementById("tempChart"), {
+    tempChart = new Chart(document.getElementById("tempChart"), {
         type: "line",
         data: {
             labels: [],
@@ -1693,15 +1898,21 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
 
    
     // type can be "success", "warning", "danger"
-   function showToast(message, type = "warning") {
+  function showToast(message, type = "warning") {
+
+        if (!window.toastHistory) {
+            window.toastHistory = {};
+        }
+
+        let key = message + "_" + type;
         let now = Date.now();
 
-        if (message === lastToastMessage && (now - lastToastTime) < 15000) {
+        if (window.toastHistory[key] &&
+            now - window.toastHistory[key] < 300000) {
             return;
         }
 
-        lastToastMessage = message;
-        lastToastTime = now;
+        window.toastHistory[key] = now;
 
         let container = document.getElementById("toastContainer");
 
@@ -1714,7 +1925,9 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
         setTimeout(() => {
             toast.style.opacity = "0";
             toast.style.transform = "translateX(100%)";
+
             setTimeout(() => toast.remove(), 500);
+
         }, 4000);
     }
 
@@ -1789,6 +2002,33 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
             let r = await fetch(`/temperature_data?site=${selectedSite}&device_eui=${selectedDeviceEui}`);
             let m = await r.json();
             updateAIHealth(m);
+            updatePrediction(m);
+            if (m.prediction_risk === "HIGH") {
+                showToast(
+                    `🔮 Predictive AI Warning: Temp may reach ${m.predicted_temperature}°C`,
+                    "danger"
+                );
+            }
+
+            if (m.anomaly_level === "HIGH") {
+                if (!window.lastHighAlertTime) {
+                    window.lastHighAlertTime = 0;
+                }
+
+                let now = Date.now();
+
+                if (now - window.lastHighAlertTime > 300000) {
+                    let latestTemp = m.temperature?.[m.temperature.length - 1] ?? "--";
+
+                    showToast(
+                        "🌡️ High Temperature Alert",
+                        "Temperature reached " + latestTemp + "°C"
+                    );
+
+                    window.lastHighAlertTime = now;
+                }
+            }
+
             console.log("TEMP STATUS:", m.status, "LAST SEEN:", m.last_seen_seconds);
 
             let temps = m.temperature || [];
@@ -1911,6 +2151,7 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
         </tr>`;
             }
         filterSensorTable();
+        renderTemperatureChart(timestamps, temps, m.forecast_values);
         }
         
 
@@ -1923,6 +2164,19 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
             let r = await fetch(`/smoke_data?site=${selectedSite}&device_eui=${selectedDeviceEui}`);
             let m = await r.json();
             updateAIHealth(m);
+
+            if (m.anomaly_level === "HIGH") {
+                if (!window.lastSmokeHighAlertTime) {
+                    window.lastSmokeHighAlertTime = 0;
+                }
+
+                let now = Date.now();
+
+                if (now - window.lastSmokeHighAlertTime > 300000) {
+                    showToast("🚨 Smoke Detector High Alert", "Check smoke detector immediately");
+                    window.lastSmokeHighAlertTime = now;
+                }
+            }
 
             let timestamps = m.timestamps || [];
             let fault = m.fault_alarm || [];
@@ -2072,6 +2326,19 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
         let r = await fetch(`/data?site=${selectedSite}&device_eui=${selectedDeviceEui}`)
         let m = await r.json();
         updateAIHealth(m);
+
+        if (m.anomaly_level === "HIGH") {
+            if (!window.lastMeterHighAlertTime) {
+                window.lastMeterHighAlertTime = 0;
+            }
+
+            let now = Date.now();
+
+            if (now - window.lastMeterHighAlertTime > 300000) {
+                showToast("⚡ AC Meter High Alert", "Electrical anomaly detected");
+                window.lastMeterHighAlertTime = now;
+            }
+        }
 
         const MAX_POINTS = 50;
         let start = Math.max(0, m.voltage1.length - MAX_POINTS);
@@ -2763,19 +3030,21 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
     }
 
     function runCurrentDashboard() {
-        let selectedDevice = allDevices.find(d => d.device_eui === selectedDeviceEui);
-        if (!selectedDevice) return;
+            let selectedDevice = allDevices.find(d => d.device_eui === selectedDeviceEui);
+            if (!selectedDevice) return;
 
-        if (selectedDevice.device_type === "temperature_sensor") {
-            loadTemperatureData();
-        } else if (selectedDevice.device_type === "smoke_detector") {
-            loadSmokeData();
-        } else {
-            loadMetrics();
-            loadTable();
-            loadAlertHistory();
+            loadDeviceHealth();
+
+            if (selectedDevice.device_type === "temperature_sensor") {
+                loadTemperatureData();
+            } else if (selectedDevice.device_type === "smoke_detector") {
+                loadSmokeData();
+            } else {
+                loadMetrics();
+                loadTable();
+                loadAlertHistory();
+            }
         }
-    }
 
     loadAnomalyHistory();
     setInterval(loadAnomalyHistory, 10000);

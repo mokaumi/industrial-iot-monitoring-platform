@@ -8,7 +8,7 @@ from datetime import datetime
 from database import (
     init_db, insert_data, get_all_data, get_data_by_device, get_devices,
     init_users_table, get_user_by_username, create_user, get_all_users,
-    delete_user_by_id, insert_anomaly_event, recent_anomaly_exists, get_recent_anomaly_events
+    delete_user_by_id, insert_anomaly_event, recent_anomaly_exists, get_recent_anomaly_events, get_device_anomaly_stats
 )
 from auth import register_auth_routes, require_role
 from admin import register_admin_routes
@@ -17,7 +17,7 @@ from mqtt_handler import mqtt_listener
 from udp_handler import udp_listener
 import base64
 import os
-from anomaly import analyze_temperature, analyze_smoke, analyze_ac_meter
+from anomaly import analyze_temperature, analyze_smoke, analyze_ac_meter, predict_temperature_trend
 
 
 
@@ -37,7 +37,7 @@ register_admin_routes(app)
 
 # ---------------- THREADS ----------------
 # threading.Thread(target=udp_listener, daemon=True).start()
-# threading.Thread(target=mqtt_listener, daemon=True).start()
+threading.Thread(target=mqtt_listener, daemon=True).start()
 
 
 
@@ -49,6 +49,41 @@ register_admin_routes(app)
 
 
 # ---------------- ROUTES ----------------
+@app.route("/device_health")
+def device_health():
+    check = require_role("admin", "operator", "viewer")
+    if check:
+        return check
+
+    device_eui = request.args.get("device_eui")
+
+    if not device_eui:
+        return jsonify({"error": "device_eui is required"}), 400
+
+    stats = get_device_anomaly_stats(device_eui)
+
+    anomaly_count = stats["total_anomalies"]
+
+    reliability_score = max(0, 100 - (anomaly_count * 5))
+
+    if reliability_score >= 80:
+        reliability_level = "GOOD"
+    elif reliability_score >= 50:
+        reliability_level = "WATCH"
+    else:
+        reliability_level = "POOR"
+
+    return jsonify({
+        "device_eui": device_eui,
+        "total_anomalies": anomaly_count,
+        "last_anomaly": stats["last_anomaly"],
+        "reliability_score": reliability_score,
+        "reliability_level": reliability_level
+    })
+
+
+
+
 @app.route("/anomaly_history")
 def anomaly_history():
     check = require_role("admin", "operator", "viewer")
@@ -77,9 +112,9 @@ def anomaly_history():
 
 @app.route("/api/telemetry", methods=["POST"])
 def api_telemetry():
-    api_key = request.headers.get("X-API-Key")
-    if api_key != API_KEY:
-        return jsonify({"error": "Unauthorized"}), 401
+    # api_key = request.headers.get("X-API-Key")
+    # if api_key != API_KEY:
+    #     return jsonify({"error": "Unauthorized"}), 401
 
     packet = request.get_json()
 
@@ -715,7 +750,8 @@ def temperature_data():
         anomaly = analyze_temperature(status="OFFLINE")
 
     data.update(anomaly)
-
+    prediction = predict_temperature_trend(data["temperature"])
+    data.update(prediction)
     
     reason_text = anomaly["anomaly_level"]
 
