@@ -42,6 +42,27 @@ def init_db():
 
 
 
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS device_config (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        site TEXT,
+        device_name TEXT,
+        device_type TEXT,
+        device_eui TEXT UNIQUE,
+        protocol TEXT,
+        host TEXT,
+        port INTEGER,
+        start_register INTEGER,
+        register_count INTEGER,
+        polling_interval INTEGER,
+        is_active INTEGER DEFAULT 1
+    )
+    """)
+
+
+
+
     conn.commit()
     conn.close()
 
@@ -276,3 +297,43 @@ def get_device_anomaly_stats(device_eui):
         "total_anomalies": row[0] or 0,
         "last_anomaly": row[1]
     }
+
+
+def add_device_config(site, device_name, device_type, device_eui, protocol,
+                      host, port, start_register, register_count, polling_interval):
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    INSERT OR IGNORE INTO device_config (
+        site, device_name, device_type, device_eui,
+        protocol, host, port, start_register,
+        register_count, polling_interval
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        site, device_name, device_type, device_eui,
+        protocol, host, port, start_register,
+        register_count, polling_interval
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def get_active_device_configs():
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT site, device_name, device_type, device_eui,
+           protocol, host, port, start_register,
+           register_count, polling_interval
+    FROM device_config
+    WHERE is_active = 1
+    """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return rows

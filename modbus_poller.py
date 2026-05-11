@@ -1,42 +1,55 @@
 from pyModbusTCP.client import ModbusClient
-from database import insert_data
+from database import insert_data, get_active_device_configs
 import time
 
-client = ModbusClient(host="127.0.0.1", port=5020, auto_open=True)
-
 while True:
-    regs = client.read_holding_registers(0, 4)
+    devices = get_active_device_configs()
 
-    if regs:
-        temperature = regs[0] / 10
-        humidity = regs[1] / 10
-        battery = regs[2] / 100
-        status = regs[3]
+    for d in devices:
+        site = d[0]
+        device_name = d[1]
+        device_type = d[2]
+        device_eui = d[3]
+        protocol = d[4]
+        host = d[5]
+        port = d[6]
+        start_register = d[7]
+        register_count = d[8]
 
-        decoded = {
-            "event": 1,
-            "state": status,
-            "temperature": temperature,
-            "humidity": humidity,
-            "movement": "MODBUS",
-            "battery": battery
-        }
+        if protocol != "MODBUS_TCP":
+            continue
 
-        insert_data(
-            "MODBUS_SITE",
-            "RS485 Temp Humidity Sensor",
-            "temperature_sensor",
-            "MODBUS_TEMP_001",
-            "MODBUS_TCP",
-            None,
-            None,
-            str(decoded),
-            None
-        )
+        client = ModbusClient(host=host, port=port, auto_open=True)
 
-        print("Saved Modbus reading:", decoded)
+        regs = client.read_holding_registers(start_register, register_count)
 
-    else:
-        print("Modbus read failed")
+        if regs:
+            decoded = {
+                "event": 1,
+                "state": regs[3],
+                "temperature": regs[0] / 10,
+                "humidity": regs[1] / 10,
+                "movement": "MODBUS",
+                "battery": regs[2] / 100
+            }
 
+            insert_data(
+                site,
+                device_name,
+                device_type,
+                device_eui,
+                "MODBUS_TCP",
+                None,
+                None,
+                str(decoded),
+                None
+            )
+
+            print(device_name, decoded)
+        else:
+            print("Read failed:", device_name)
+
+        client.close()
+
+    print("-" * 40)
     time.sleep(5)
