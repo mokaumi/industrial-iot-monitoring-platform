@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Device Configuration</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #0f172a;
+            color: white;
+            padding: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #1e293b;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            border: 1px solid #334155;
+            text-align: left;
+        }
+
+        th {
+            background: #0f172a;
+        }
+
+        tr:nth-child(even) {
+            background: #273549;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+
+        input {
+            padding: 10px;
+            margin: 6px;
+            border-radius: 6px;
+            border: none;
+        }
+
+        button {
+            padding: 10px 18px;
+            background: #22c55e;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        
+    </style>
+</head>
+
+<body>
+
+    <h1>⚙ Device Configuration</h1>
+
+
+<form method="POST" action="/admin/devices/add"
+    style="margin-bottom:25px; background:#1e293b; padding:20px; border-radius:10px;">
+    <h2>Add Device</h2>
+
+    <input name="site" placeholder="Site" required>
+    <input name="device_name" placeholder="Device Name" required>
+    <input name="device_type" placeholder="Device Type" value="temperature_sensor" required>
+    <input name="device_eui" placeholder="Device EUI" required>
+    <input name="protocol" placeholder="Protocol" value="MODBUS_TCP" required>
+    <input name="host" placeholder="Host" value="127.0.0.1" required>
+    <input name="port" placeholder="Port" value="5020" required>
+    <input name="start_register" placeholder="Start Register" required>
+    <input name="register_count" placeholder="Register Count" value="4" required>
+    <input name="polling_interval" placeholder="Polling Interval" value="5" required>
+
+    <button type="submit">Add Device</button>
+</form>
+
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Site</th>
+                <th>Device</th>
+                <th>Protocol</th>
+                <th>Host</th>
+                <th>Port</th>
+                <th>Register</th>
+                <th>Action</th>
+                <th>Active</th>
+            </tr>
+        </thead>
+
+        <tbody>
+        
+            {% for d in devices %}
+            <tr>
+                <td>{{ d[0] }}</td>
+                <td>{{ d[1] }}</td>
+                <td>{{ d[2] }}</td>
+                <td>{{ d[5] }}</td>
+                <td>{{ d[6] }}</td>
+                <td>{{ d[7] }}</td>
+                <td>{{ d[8] }}</td>
+                <td>{{ d[11] }}</td>
+        
+                <td>
+                    <a href="/admin/devices/toggle/{{ d[0] }}">
+                        {% if d[11] == 1 %}
+                        Disable
+                        {% else %}
+                        Enable
+                        {% endif %}
+                    </a>
+                </td>
+        
+            </tr>
+            {% endfor %}
+        
+        </tbody>
+    </table>
+
+</body>
+
+</html>

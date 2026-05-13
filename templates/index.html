@@ -848,13 +848,19 @@ body::after {
 </div>
 
 
+
 <div class="selector-bar">
     <label for="siteSelect">Site:</label>
     <select id="siteSelect" onchange="onSiteChange()"></select>
 
+    <label for="assetSelect" style="margin-left:20px;">Asset:</label>
+    <select id="assetSelect" onchange="onAssetChange()"></select>
+
     <label for="deviceSelect" style="margin-left:20px;">Device:</label>
     <select id="deviceSelect" onchange="onDeviceChange()"></select>
 </div>
+
+
 
 
 <div id="acMeterDashboard" class="dashboard-panel dashboard-hidden">
@@ -1037,14 +1043,27 @@ body::after {
     <div class="grid">
         <div class="card">
             <h3>Temperature Trend</h3>
-            <canvas id="tempChart"></canvas>
+    
+            <div style="height:350px;">
+                <canvas id="tempChart"></canvas>
+            </div>
         </div>
-
+    
         <div class="card">
             <h3>Relative Humidity Trend</h3>
-            <canvas id="humidityChart"></canvas>
+    
+            <div style="height:350px;">
+                <canvas id="humidityChart"></canvas>
+            </div>
         </div>
     </div>
+
+
+
+
+
+
+    
 
     <div class="card">
         <h3>Temperature Readings</h3>
@@ -1181,7 +1200,52 @@ body::after {
     let lastToastMessage = "";
     let lastToastTime = 0;
     let tempChart;
+    let allAssets = [];
+    let selectedAssetId = "";
 
+
+
+
+
+
+
+
+    async function onAssetChange() {
+            selectedAssetId = document.getElementById("assetSelect").value;
+
+            switchDashboardByDeviceType("temperature_sensor");
+
+            await loadAssetTemperatureData();
+        }
+
+
+
+
+    
+
+
+
+    async function loadAssetsForSite(site) {
+            let r = await fetch(`/assets_by_site?site=${site}`);
+            allAssets = await r.json();
+
+            let assetSelect = document.getElementById("assetSelect");
+            assetSelect.innerHTML = "";
+
+            allAssets.forEach(asset => {
+                let opt = document.createElement("option");
+                opt.value = asset.asset_id;
+                opt.textContent = `${asset.asset_name} - ${asset.asset_type}`;
+                assetSelect.appendChild(opt);
+            });
+
+            if (allAssets.length > 0) {
+
+                selectedAssetId = allAssets[0].asset_id;
+
+                await loadAssetTemperatureData();
+            }
+        }
 
 
 
@@ -1469,11 +1533,18 @@ body::after {
     
 
 
-    function onSiteChange() {
+    async function onSiteChange() {
             selectedSite = document.getElementById("siteSelect").value;
+
+            await loadAssetsForSite(selectedSite);
+
             populateDeviceSelect();
-            runCurrentDashboard();
+
+            // Do not call runCurrentDashboard here for asset mode
         }
+
+
+
 
     function onDeviceChange() {
             selectedDeviceEui = document.getElementById("deviceSelect").value;
@@ -1845,6 +1916,7 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
                 legend: {
                     labels: { color: "#e2e8f0" }
@@ -1875,6 +1947,7 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
                 legend: {
                     labels: { color: "#e2e8f0" }
@@ -1894,7 +1967,14 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
     });
 
 
+    function renderHumidityChart(labels, humidityData) {
 
+            humidityChart.data.labels = labels;
+
+            humidityChart.data.datasets[0].data = humidityData;
+
+            humidityChart.update();
+        }
 
    
     // type can be "success", "warning", "danger"
@@ -2153,7 +2233,65 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
         filterSensorTable();
         renderTemperatureChart(timestamps, temps, m.forecast_values);
         }
+    
         
+
+
+    async function loadAssetTemperatureData() {
+            if (!selectedAssetId) return;
+
+            switchDashboardByDeviceType("temperature_sensor");
+
+            let r = await fetch(`/asset_temperature_data?asset_id=${selectedAssetId}`);
+            let m = await r.json();
+
+            console.log("ASSET DATA:", m);
+
+            let timestamps = m.timestamps || [];
+            let temps = m.temperature || [];
+            let humidity = m.humidity || [];
+            let battery = m.battery || [];
+            let movement = m.movement || [];
+            let event = m.event || [];
+            let state = m.state || [];
+
+            let labels = timestamps.map(t => t.split(" ")[1] || t);
+
+            document.getElementById("tempValue").innerText =
+                temps.length ? temps[temps.length - 1] : "--";
+
+            document.getElementById("humidityValue").innerText =
+                humidity.length ? humidity[humidity.length - 1] : "--";
+
+            document.getElementById("batteryValue").innerText =
+                battery.length ? battery[battery.length - 1] : "--";
+
+            document.getElementById("movementValue").innerText =
+                movement.length ? movement[movement.length - 1] : "--";
+
+            let table = document.getElementById("temperature-table-body");
+            table.innerHTML = "";
+
+            for (let i = timestamps.length - 1; i >= 0; i--) {
+                table.innerHTML += `
+        <tr>
+            <td>${timestamps[i] ?? ""}</td>
+            <td>${event[i] ?? ""}</td>
+            <td>${state[i] ?? ""}</td>
+            <td>${battery[i] ?? ""}</td>
+            <td>${movement[i] ?? ""}</td>
+            <td>${temps[i] ?? ""}</td>
+            <td>${humidity[i] ?? ""}</td>
+        </tr>`;
+            }
+
+            renderTemperatureChart(labels, temps, m.forecast_values || []);
+            renderHumidityChart(labels, humidity);
+        }
+
+
+
+
 
     
     // -------- CARD STATUS FUNCTION --------
@@ -3009,20 +3147,33 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
     async function startDashboard() {
         await loadDevices();
 
+        if (selectedSite) {
+            await loadAssetsForSite(selectedSite);
+        }
+
         if (!selectedSite || !selectedDeviceEui) {
             console.log("No device selected yet");
             return;
         }
 
-        runCurrentDashboard();
+
+        if (selectedAssetId) {
+            ;
+        } else {
+            runCurrentDashboard();
+        }
         
 
         if (dashboardTimer) clearInterval(dashboardTimer);
         if (summaryTimer) clearInterval(summaryTimer);
 
         dashboardTimer = setInterval(() => {
-            runCurrentDashboard();
-        }, 2000);
+            if (selectedAssetId) {
+                ;
+            } else {
+                runCurrentDashboard();
+            }
+        }, 10000);
 
         summaryTimer = setInterval(() => {
             updateSiteSummary();

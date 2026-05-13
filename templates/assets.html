@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Asset Management</title>
+    <style>
+        body { font-family: Arial; background:#0f172a; color:white; padding:20px; }
+        input, button { padding:10px; margin:6px; border-radius:6px; border:none; }
+        button { background:#22c55e; color:white; font-weight:bold; }
+        table { width:100%; border-collapse:collapse; background:#1e293b; margin-top:20px; }
+        th, td { padding:12px; border:1px solid #334155; text-align:left; }
+        th { background:#0f172a; }
+        tr:nth-child(even) { background:#273549; }
+
+        select {
+            padding: 10px;
+            margin: 6px;
+            border-radius: 6px;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+
+<h1>🏭 Asset Management</h1>
+
+<form method="POST" action="/admin/assets" style="background:#1e293b; padding:20px; border-radius:10px;">
+    <h2>Add Asset</h2>
+
+    <input name="site" placeholder="Site e.g. LAG_1738A" required>
+    <input name="asset_name" placeholder="Asset Name e.g. Generator" required>
+    <input name="asset_type" placeholder="Asset Type e.g. AC Meter" required>
+    <input name="description" placeholder="Description">
+    <button type="submit">Add Asset</button>
+</form>
+
+
+
+<form method="POST" action="/admin/assets/assign"
+    style="background:#1e293b; padding:20px; border-radius:10px; margin-top:20px;">
+
+    <h2>Assign Device To Asset</h2>
+
+    <select name="asset_id" required>
+        <option value="">Select Asset</option>
+    
+        {% for a in assets %}
+        <option value="{{ a[0] }}">
+            {{ a[1] }} - {{ a[2] }} - {{ a[3] }}
+        </option>
+        {% endfor %}
+    </select>
+
+    <input name="device_eui" placeholder="Device EUI e.g. 009569060002850A" required>
+
+    <button type="submit">
+        Assign Device
+    </button>
+
+</form>
+
+
+
+
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Site</th>
+            <th>Asset Name</th>
+            <th>Asset Type</th>
+            <th>Description</th>
+            <th>Active Device</th>
+            <th>Assigned At</th>
+        </tr>
+    </thead>
+    <tbody>
+    
+        {% for a in assets %}
+        <tr>
+    
+            <td>{{ a[0] }}</td>
+            <td>{{ a[1] }}</td>
+            <td>{{ a[2] }}</td>
+            <td>{{ a[3] }}</td>
+            <td>{{ a[4] }}</td>
+    
+            <td>
+                {% if a[5] %}
+                {{ a[5] }}
+                {% else %}
+                No Device Assigned
+                {% endif %}
+            </td>
+    
+            <td>
+                {% if a[6] %}
+                {{ a[6] }}
+                {% else %}
+                --
+                {% endif %}
+            </td>
+    
+        </tr>
+        {% endfor %}
+    
+    </tbody>
+</table>
+
+</body>
+</html>

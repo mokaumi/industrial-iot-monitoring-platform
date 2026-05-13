@@ -8,7 +8,8 @@ from datetime import datetime
 from database import (
     init_db, insert_data, get_all_data, get_data_by_device, get_devices,
     init_users_table, get_user_by_username, create_user, get_all_users,
-    delete_user_by_id, insert_anomaly_event, recent_anomaly_exists, get_recent_anomaly_events, get_device_anomaly_stats
+    delete_user_by_id, insert_anomaly_event, recent_anomaly_exists, 
+    get_recent_anomaly_events, get_device_anomaly_stats, get_assets_by_site, get_data_by_asset
 )
 from auth import register_auth_routes, require_role
 from admin import register_admin_routes
@@ -43,8 +44,67 @@ threading.Thread(target=mqtt_listener, daemon=True).start()
 
 
 
+@app.route("/asset_temperature_data")
+def asset_temperature_data():
+    asset_id = request.args.get("asset_id")
+
+    if not asset_id:
+        return jsonify({"error": "asset_id is required"}), 400
+
+    rows = get_data_by_asset(asset_id)
+    rows = rows[::-1]
+
+    data = {
+        "timestamps": [],
+        "event": [],
+        "state": [],
+        "battery": [],
+        "movement": [],
+        "temperature": [],
+        "humidity": []
+    }
+
+    for r in rows:
+        try:
+            decoded = json.loads(r[8].replace("'", '"'))
+
+            data["timestamps"].append(str(r[10]))
+            data["event"].append(decoded.get("event"))
+            data["state"].append(decoded.get("state"))
+            data["battery"].append(decoded.get("battery"))
+            data["movement"].append(decoded.get("movement"))
+            data["temperature"].append(decoded.get("temperature"))
+            data["humidity"].append(decoded.get("humidity"))
+
+        except Exception as e:
+            print("Asset temp data error:", e)
+
+    return jsonify(data)
 
 
+
+
+
+
+@app.route("/assets_by_site")
+def assets_by_site():
+    site = request.args.get("site")
+
+    if not site:
+        return jsonify([])
+
+    rows = get_assets_by_site(site)
+
+    assets = []
+
+    for r in rows:
+        assets.append({
+            "asset_id": r[0],
+            "asset_name": r[1],
+            "asset_type": r[2]
+        })
+
+    return jsonify(assets)
 
 
 

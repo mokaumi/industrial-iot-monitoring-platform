@@ -62,21 +62,112 @@ def init_db():
 
 
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS assets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        site TEXT,
+        asset_name TEXT,
+        asset_type TEXT,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS asset_devices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        asset_id INTEGER,
+        device_eui TEXT,
+        is_active INTEGER DEFAULT 1,
+        assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+
+
 
     conn.commit()
     conn.close()
+
+
+
+
+
+def add_asset(site, asset_name, asset_type, description):
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    INSERT INTO assets (site, asset_name, asset_type, description)
+    VALUES (?, ?, ?, ?)
+    """, (site, asset_name, asset_type, description))
+
+    conn.commit()
+    conn.close()
+
+
+def get_all_assets():
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT id, site, asset_name, asset_type, description, created_at
+    FROM assets
+    ORDER BY site, asset_name
+    """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return rows
+
+
+def assign_device_to_asset(asset_id, device_eui):
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE asset_devices
+    SET is_active = 0
+    WHERE asset_id = ?
+    """, (asset_id,))
+
+    cursor.execute("""
+    INSERT INTO asset_devices (asset_id, device_eui, is_active)
+    VALUES (?, ?, 1)
+    """, (asset_id, device_eui))
+
+    conn.commit()
+    conn.close()
+
+
+
 
 
 def insert_data(site, device_name, device_type, device_eui, freq, rssi, snr, payload, temp):
     conn = sqlite3.connect("iot.db")
     cursor = conn.cursor()
 
+    asset = get_asset_by_device(device_eui)
+
+    asset_id = None
+    asset_name = None
+    asset_type = None
+
+    if asset:
+        asset_id = asset[0]
+        asset_name = asset[2]
+        asset_type = asset[3]
+
     cursor.execute("""
     INSERT INTO sensor_data (
         site, device_name, device_type, device_eui,
-        freq, rssi, snr, payload, temp, timestamp
+        freq, rssi, snr, payload, temp, asset_id,
+        asset_name, asset_type, timestamp
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         site,
         device_name,
@@ -87,6 +178,9 @@ def insert_data(site, device_name, device_type, device_eui, freq, rssi, snr, pay
         snr,
         payload,
         temp,
+        asset_id,
+        asset_name,
+        asset_type,
         datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     ))
 
@@ -332,6 +426,142 @@ def get_active_device_configs():
     FROM device_config
     WHERE is_active = 1
     """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return rows
+
+
+
+def get_all_device_configs():
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT id, site, device_name, device_type, device_eui,
+           protocol, host, port, start_register,
+           register_count, polling_interval, is_active
+    FROM device_config
+    ORDER BY site, device_name
+    """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return rows
+
+
+def toggle_device_status(device_id):
+
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE device_config
+    SET is_active =
+        CASE
+            WHEN is_active = 1 THEN 0
+            ELSE 1
+        END
+    WHERE id = ?
+    """, (device_id,))
+
+    conn.commit()
+    conn.close()
+
+
+def get_assets_with_devices():
+
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        a.id,
+        a.site,
+        a.asset_name,
+        a.asset_type,
+        a.description,
+        d.device_eui,
+        d.assigned_at
+
+    FROM assets a
+
+    LEFT JOIN asset_devices d
+        ON a.id = d.asset_id
+        AND d.is_active = 1
+
+    ORDER BY a.site, a.asset_name
+    """)
+
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    return rows
+
+
+
+def get_asset_by_device(device_eui):
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        a.id,
+        a.site,
+        a.asset_name,
+        a.asset_type,
+        a.description
+    FROM assets a
+    JOIN asset_devices d
+        ON a.id = d.asset_id
+    WHERE d.device_eui = ?
+    AND d.is_active = 1
+    LIMIT 1
+    """, (device_eui,))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    return row
+
+
+def get_assets_by_site(site):
+
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        id,
+        asset_name,
+        asset_type
+    FROM assets
+    WHERE site = ?
+    ORDER BY asset_name
+    """, (site,))
+
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    return rows
+
+
+
+def get_data_by_asset(asset_id):
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT *
+    FROM sensor_data
+    WHERE asset_id = ?
+    ORDER BY timestamp DESC
+    LIMIT 100
+    """, (asset_id,))
 
     rows = cursor.fetchall()
     conn.close()
