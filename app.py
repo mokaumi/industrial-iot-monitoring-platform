@@ -3,6 +3,7 @@ from flask import Flask, render_template, jsonify, request, session, redirect, u
 import paho.mqtt.client as mqtt
 import threading
 import socket
+import sqlite3
 import json
 from datetime import datetime
 from database import (
@@ -36,9 +37,121 @@ register_admin_routes(app)
 
 
 
+
+
+
+
+
+
 # ---------------- THREADS ----------------
 # threading.Thread(target=udp_listener, daemon=True).start()
 threading.Thread(target=mqtt_listener, daemon=True).start()
+
+
+
+
+@app.route("/recent_incidents")
+def recent_incidents():
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    
+
+    cursor.execute("""
+    SELECT timestamp, device_eui, anomaly_level, anomaly_score, anomaly_reason
+    FROM anomaly_events
+    ORDER BY timestamp DESC
+    LIMIT 20
+    """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    incidents = []
+
+    for r in rows:
+        incidents.append({
+            "timestamp": r[0],
+            "device_eui": r[1],
+            "level": r[2],
+            "score": r[3],
+            "reason": r[4]
+        })
+
+    return jsonify(incidents)
+
+
+
+
+
+def calculate_device_reliability(device_eui):
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT COUNT(*), MAX(timestamp)
+    FROM anomaly_events
+    WHERE device_eui = ?
+    """, (device_eui,))
+
+    total_anomalies, last_incident = cursor.fetchone()
+    conn.close()
+
+    score = 100 - (total_anomalies * 5)
+
+    if score < 0:
+        score = 0
+
+    if score >= 80:
+        level = "GOOD"
+    elif score >= 50:
+        level = "WATCH"
+    else:
+        level = "POOR"
+
+    return {
+        "device_eui": device_eui,
+        "reliability_score": score,
+        "reliability_level": level,
+        "total_anomalies": total_anomalies,
+        "last_anomaly": last_incident
+    }
+
+
+
+
+
+@app.route("/asset_health")
+def asset_health():
+    asset_id = request.args.get("asset_id")
+
+    if not asset_id:
+        return jsonify({"error": "asset_id is required"}), 400
+
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT device_eui
+    FROM asset_devices
+    WHERE asset_id = ?
+    AND is_active = 1
+    LIMIT 1
+    """, (asset_id,))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return jsonify({
+            "reliability_score": "--",
+            "reliability_level": "--",
+            "total_anomalies": "--",
+            "last_anomaly": "--"
+        })
+
+    return jsonify(calculate_device_reliability(row[0]))
+
 
 
 
@@ -78,6 +191,21 @@ def asset_temperature_data():
 
         except Exception as e:
             print("Asset temp data error:", e)
+
+    if len(data["timestamps"]) > 0:
+        anomaly = analyze_temperature(
+            temperature=data["temperature"][-1],
+            humidity=data["humidity"][-1],
+            battery=data["battery"][-1],
+            status="ONLINE",
+            temp_history=data["temperature"]
+        )
+    else:
+        anomaly = analyze_temperature(status="OFFLINE")
+
+    data.update(anomaly)
+    prediction = predict_temperature_trend(data["temperature"])
+    data.update(prediction)
 
     return jsonify(data)
 

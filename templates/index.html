@@ -400,10 +400,17 @@ body.theme-smoke {
     --theme-glow: rgba(249,115,22,0.35);
 }
 
+
 .dashboard-title {
-    color: var(--theme-color);
-    text-shadow: 0 0 16px var(--theme-glow);
+    font-size: clamp(24px, 3.2vw, 44px);
+    font-weight: 800;
+    color: #22c55e;
+    text-shadow: 0 0 10px rgba(34,197,94,0.7);
+    margin-bottom: 20px;
+    line-height: 1.1;
+    max-width: 70%;
 }
+
 
 .selector-bar {
     border-color: var(--theme-color);
@@ -708,6 +715,84 @@ body::after {
     height: 320px !important;
 }
 
+.incident-level {
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.incident-level.NORMAL {
+    background: rgba(0,255,100,0.15);
+    color: #00ff66;
+}
+
+.incident-level.LOW {
+    background: rgba(255,255,0,0.15);
+    color: #ffe600;
+}
+
+.incident-level.MEDIUM {
+    background: rgba(255,140,0,0.15);
+    color: #ff9900;
+}
+
+.incident-level.HIGH {
+    background: rgba(255,0,0,0.15);
+    color: #ff4d4d;
+}
+
+
+
+
+.health-normal {
+    border-left: 4px solid #00ff66;
+    box-shadow: 0 0 20px rgba(0,255,100,0.15);
+}
+
+.health-low {
+    border-left: 4px solid #ffe600;
+    box-shadow: 0 0 20px rgba(255,230,0,0.15);
+}
+
+.health-medium {
+    border-left: 4px solid #ff9900;
+    box-shadow: 0 0 20px rgba(255,153,0,0.15);
+}
+
+.health-high {
+    border-left: 4px solid #ff3b3b;
+    box-shadow: 0 0 25px rgba(255,0,0,0.2);
+}
+
+
+
+.alert-popup {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(255, 0, 0, 0.95);
+    color: white;
+    padding: 16px 22px;
+    border-radius: 12px;
+    font-weight: bold;
+    z-index: 99999;
+    box-shadow: 0 0 25px rgba(255,0,0,0.5);
+
+    animation: slideIn 0.4s ease;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(300px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
 
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -820,11 +905,11 @@ body::after {
 <div class="card" id="deviceHealthCard">
     <h3>🛠 Device Reliability</h3>
 
-    <div class="device-health-main">
-        <div>Score: <span id="reliabilityScore" class="health-number">--</span>/100</div>
-        <div>Level: <span id="reliabilityLevel">--</span></div>
-        <div>Anomalies: <span id="totalAnomalies">--</span></div>
-        <div>Last Incident: <span id="lastAnomaly">--</span></div>
+    <div class="reliability-stats">
+        <span>Score: <strong id="reliabilityScore">--</strong>/100</span>
+        <span>Level: <strong id="reliabilityLevel">--</strong></span>
+        <span>Anomalies: <strong id="reliabilityAnomalies">--</strong></span>
+        <span>Last Incident: <strong id="reliabilityLastIncident">--</strong></span>
     </div>
 </div>
 
@@ -1202,9 +1287,100 @@ body::after {
     let tempChart;
     let allAssets = [];
     let selectedAssetId = "";
+    let lastAlertLevel = null;
 
 
 
+
+
+
+
+    function showAlertPopup(message) {
+            let popup = document.createElement("div");
+
+            popup.className = "alert-popup";
+            popup.innerHTML = `
+        🚨 ${message}
+    `;
+
+            document.body.appendChild(popup);
+
+            setTimeout(() => {
+                popup.remove();
+            }, 5000);
+        }
+
+
+
+    async function loadRecentIncidents() {
+            let r = await fetch("/recent_incidents");
+            let data = await r.json();
+
+            let body = document.getElementById("anomalyTableBody");
+            body.innerHTML = "";
+
+            data.forEach(a => {
+                body.innerHTML += `
+            <tr>
+                <td>${a.timestamp}</td>
+                <td>${a.device_eui}</td>
+                <td>
+                <span class="incident-level ${a.level}">
+                    ${a.level}
+                </span>
+                 </td>
+                <td>${a.score}</td>
+                <td>${a.reason}</td>
+            </tr>
+        `;
+            });
+        }
+
+
+
+
+
+    async function loadAssetHealth() {
+
+            if (!selectedAssetId) return;
+
+            let r = await fetch(`/asset_health?asset_id=${selectedAssetId}`);
+            let h = await r.json();
+
+            document.getElementById("reliabilityScore").innerText =
+                h.reliability_score ?? "--";
+
+            document.getElementById("reliabilityLevel").innerText =
+                h.reliability_level ?? "--";
+
+            document.getElementById("reliabilityAnomalies").innerText =
+                h.total_anomalies ?? "--";
+
+            document.getElementById("reliabilityLastIncident").innerText =
+                h.last_anomaly ?? "--";
+        }
+
+
+
+
+
+    function updateDashboardTitle() {
+
+            let site = selectedSite || "Unknown Site";
+
+            let assetName = "No Asset";
+
+            let selectedAsset = allAssets.find(
+                a => a.asset_id == selectedAssetId
+            );
+
+            if (selectedAsset) {
+                assetName = `${selectedAsset.asset_name} - ${selectedAsset.asset_type}`;
+            }
+
+            document.getElementById("dashboardTitle").innerText =
+                `⚡ ${site} | ${assetName.replace("AC METER", "ACM")}`
+        }
 
 
 
@@ -1443,16 +1619,39 @@ body::after {
                 });
             }
 
-            let card = document.getElementById("aiHealthCard");
-            card.classList.remove("normal", "warning", "danger");
 
-            if (m.anomaly_level === "HIGH") {
-                card.classList.add("danger");
-            } else if (m.anomaly_level === "MEDIUM") {
-                card.classList.add("warning");
-            } else {
-                card.classList.add("normal");
+            const aiCard = document.getElementById("aiHealthCard");
+
+            aiCard.classList.remove(
+                "health-normal",
+                "health-low",
+                "health-medium",
+                "health-high"
+            );
+
+            if (m.anomaly_level === "NORMAL") {
+                aiCard.classList.add("health-normal");
             }
+            else if (m.anomaly_level === "LOW") {
+                aiCard.classList.add("health-low");
+            }
+            else if (m.anomaly_level === "MEDIUM") {
+                aiCard.classList.add("health-medium");
+            }
+            else {
+                aiCard.classList.add("health-high");
+            }
+
+            if (
+                m.anomaly_level === "HIGH" &&
+                lastAlertLevel !== "HIGH"
+            ) {
+                showAlertPopup(
+                    m.anomaly_reasons.join(", ")
+                );
+            }
+
+            lastAlertLevel = m.anomaly_level;
         }
 
 
@@ -2238,6 +2437,9 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
 
 
     async function loadAssetTemperatureData() {
+            updateDashboardTitle();
+            await loadAssetHealth();
+
             if (!selectedAssetId) return;
 
             switchDashboardByDeviceType("temperature_sensor");
@@ -2254,6 +2456,17 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
             let movement = m.movement || [];
             let event = m.event || [];
             let state = m.state || [];
+
+
+            updateAIHealth(m);
+            updatePrediction(m);
+
+            document.getElementById("lastUpdate").innerText =
+                new Date().toLocaleTimeString();
+
+            document.getElementById("lastSeen").innerText = "Live asset data";
+
+            updateStatusUI("ONLINE");
 
             let labels = timestamps.map(t => t.split(" ")[1] || t);
 
@@ -3146,6 +3359,7 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
 
     async function startDashboard() {
         await loadDevices();
+        await updateSiteSummary();
 
         if (selectedSite) {
             await loadAssetsForSite(selectedSite);
@@ -3197,8 +3411,8 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
             }
         }
 
-    loadAnomalyHistory();
-    setInterval(loadAnomalyHistory, 10000);
+    loadRecentIncidents();
+    setInterval(loadRecentIncidents, 10000);
 
     startDashboard();
 </script>
