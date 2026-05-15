@@ -794,6 +794,69 @@ body::after {
 }
 
 
+
+.alert-popup {
+    position: fixed;
+    top: 30px;
+    right: 30px;
+    width: 350px;
+    background: #220000;
+    border: 2px solid red;
+    border-radius: 14px;
+    padding: 20px;
+    z-index: 9999;
+
+    box-shadow:
+        0 0 20px red,
+        0 0 40px rgba(255,0,0,0.5);
+
+    animation:
+        pulseAlert 1s infinite alternate;
+}
+
+.hidden {
+    display: none;
+}
+
+.alert-header {
+    font-size: 22px;
+    font-weight: bold;
+    color: #ff4d4d;
+    margin-bottom: 15px;
+}
+
+.alert-message {
+    color: white;
+    font-size: 18px;
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+.alert-btn {
+    background: red;
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.alert-btn:hover {
+    background: #ff4d4d;
+}
+
+@keyframes pulseAlert {
+    from {
+        transform: scale(1);
+    }
+
+    to {
+        transform: scale(1.03);
+    }
+}
+
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -1272,6 +1335,26 @@ body::after {
         </div>
     </div>
     <div id="toastContainer"></div>
+
+    <div id="alertPopup" class="alert-popup hidden">
+        <div class="alert-header">
+            🚨 CRITICAL AI ALERT
+        </div>
+    
+        <div id="alertMessage" class="alert-message">
+            High temperature detected
+        </div>
+    
+        <button onclick="closeAlert()" class="alert-btn">
+            Acknowledge
+        </button>
+    </div>
+    
+    
+    <audio id="alertSound">
+        <source src="/static/alarm.mp3" type="audio/mpeg">
+    </audio>
+
 </body>
 
 
@@ -1292,23 +1375,63 @@ body::after {
 
 
 
+    let soundUnlocked = false;
+
+        document.addEventListener("click", () => {
+            const sound = document.getElementById("alertSound");
+
+            if (!soundUnlocked && sound) {
+                sound.play()
+                    .then(() => {
+                        sound.pause();
+                        sound.currentTime = 0;
+                        soundUnlocked = true;
+                    })
+                    .catch(() => { });
+            }
+        });
 
 
+    
 
     function showAlertPopup(message) {
-            let popup = document.createElement("div");
+            const popup = document.getElementById("alertPopup");
+            const text = document.getElementById("alertMessage");
+            const sound = document.getElementById("alertSound");
 
-            popup.className = "alert-popup";
-            popup.innerHTML = `
-        🚨 ${message}
-    `;
+            text.innerText = message;
+            popup.classList.remove("hidden");
 
-            document.body.appendChild(popup);
+            sound.volume = 1.0;
+            sound.currentTime = 0;
 
-            setTimeout(() => {
-                popup.remove();
-            }, 5000);
+            sound.play().catch(err => {
+                console.log("Sound blocked:", err);
+            });
         }
+
+
+
+
+    
+        
+
+    function closeAlert() {
+            document.getElementById("alertPopup")
+                .classList.add("hidden");
+
+            lastAlertLevel = null;
+        }
+
+
+
+    
+
+
+    
+
+
+    
 
 
 
@@ -1643,15 +1766,18 @@ body::after {
             }
 
             if (
-                m.anomaly_level === "HIGH" &&
+                (m.anomaly_level === "HIGH" || m.prediction_risk === "HIGH") &&
                 lastAlertLevel !== "HIGH"
             ) {
                 showAlertPopup(
-                    m.anomaly_reasons.join(", ")
+                    m.anomaly_reasons?.join(", ") || m.prediction_message || "Critical alert detected"
                 );
             }
 
-            lastAlertLevel = m.anomaly_level;
+            lastAlertLevel =
+                (m.anomaly_level === "HIGH" || m.prediction_risk === "HIGH")
+                    ? "HIGH"
+                    : m.anomaly_level;
         }
 
 
@@ -3383,7 +3509,7 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
 
         dashboardTimer = setInterval(() => {
             if (selectedAssetId) {
-                ;
+                loadAssetTemperatureData();
             } else {
                 runCurrentDashboard();
             }

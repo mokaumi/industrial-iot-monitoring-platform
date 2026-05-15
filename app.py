@@ -207,6 +207,41 @@ def asset_temperature_data():
     prediction = predict_temperature_trend(data["temperature"])
     data.update(prediction)
 
+    if anomaly["anomaly_level"] in ["LOW", "MEDIUM", "HIGH"]:
+
+        conn = sqlite3.connect("iot.db")
+        cursor = conn.cursor()
+
+        cursor.execute("""
+        SELECT device_eui
+        FROM asset_devices
+        WHERE asset_id = ?
+        AND is_active = 1
+        LIMIT 1
+        """, (asset_id,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            device_eui = row[0]
+
+            already_exists = recent_anomaly_exists(
+                device_eui,
+                anomaly["anomaly_level"],
+                minutes=5
+            )
+
+            if not already_exists:
+                insert_anomaly_event(
+                    "ASSET_MODE",
+                    device_eui,
+                    "asset_temperature_sensor",
+                    anomaly["anomaly_score"],
+                    anomaly["anomaly_level"],
+                    ", ".join(anomaly["anomaly_reasons"])
+                )
+
     return jsonify(data)
 
 
@@ -940,8 +975,7 @@ def temperature_data():
     data.update(anomaly)
     prediction = predict_temperature_trend(data["temperature"])
     data.update(prediction)
-    
-    reason_text = anomaly["anomaly_level"]
+
 
     if anomaly["anomaly_level"] == "HIGH":
 

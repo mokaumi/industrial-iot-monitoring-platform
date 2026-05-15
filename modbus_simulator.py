@@ -21,7 +21,7 @@ try:
         hum2 = 50 + (5 * math.sin(counter / 7))
 
         # Device 3
-        temp3 = 35 + (7 * math.sin(counter / 4))
+        temp3 = 75 + (7 * math.sin(counter / 4))
         hum3 = 40 + (8 * math.sin(counter / 5))
 
         # Registers for device 1
