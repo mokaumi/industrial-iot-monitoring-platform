@@ -1,5 +1,5 @@
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for, session
 import paho.mqtt.client as mqtt
 import threading
 import socket
@@ -47,6 +47,68 @@ register_admin_routes(app)
 # threading.Thread(target=udp_listener, daemon=True).start()
 threading.Thread(target=mqtt_listener, daemon=True).start()
 
+
+
+
+@app.route("/alarm_history")
+def alarm_history():
+
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        device_eui,
+        alarm_message,
+        acknowledged_by,
+        acknowledged_at
+    FROM alarm_acknowledgements
+    ORDER BY acknowledged_at DESC
+    LIMIT 50
+    """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    alarms = []
+
+    for r in rows:
+        alarms.append({
+            "device_eui": r[0],
+            "alarm_message": r[1],
+            "acknowledged_by": r[2],
+            "acknowledged_at": r[3]
+        })
+
+    return jsonify(alarms)
+
+
+
+
+@app.route("/acknowledge_alarm", methods=["POST"])
+def acknowledge_alarm():
+    data = request.get_json()
+
+    device_eui = data.get("device_eui", "UNKNOWN")
+    alarm_message = data.get("alarm_message", "UNKNOWN")
+    acknowledged_by = session.get("user", "UNKNOWN")
+
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    INSERT INTO alarm_acknowledgements (
+        device_eui,
+        alarm_message,
+        acknowledged_by
+    )
+    VALUES (?, ?, ?)
+    """, (device_eui, alarm_message, acknowledged_by))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "acknowledged"})
 
 
 

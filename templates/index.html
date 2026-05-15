@@ -952,6 +952,28 @@ body::after {
 </div>
 
 
+
+
+<div class="card">
+    <h3>📋 Alarm Acknowledgement History</h3>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Device</th>
+                <th>Message</th>
+                <th>User</th>
+                <th>Time</th>
+            </tr>
+        </thead>
+
+        <tbody id="alarmHistoryBody"></tbody>
+    </table>
+</div>
+
+
+
+
 <div class="card" id="predictionCard">
     <h3>🔮 Predictive Temperature AI</h3>
 
@@ -1391,6 +1413,31 @@ body::after {
             }
         });
 
+    
+
+    async function loadAlarmHistory() {
+
+            let r = await fetch("/alarm_history");
+            let alarms = await r.json();
+
+            let body =
+                document.getElementById("alarmHistoryBody");
+
+            body.innerHTML = "";
+
+            alarms.forEach(a => {
+
+                body.innerHTML += `
+        <tr>
+            <td>${a.device_eui}</td>
+            <td>${a.alarm_message}</td>
+            <td>${a.acknowledged_by}</td>
+            <td>${a.acknowledged_at}</td>
+        </tr>
+        `;
+            });
+        }
+    
 
     
 
@@ -1416,7 +1463,22 @@ body::after {
     
         
 
-    function closeAlert() {
+    async function closeAlert() {
+
+            const message =
+                document.getElementById("alertMessage").innerText;
+
+            await fetch("/acknowledge_alarm", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    device_eui: selectedDeviceEui || "ASSET_MODE",
+                    alarm_message: message
+                })
+            });
+
             document.getElementById("alertPopup")
                 .classList.add("hidden");
 
@@ -3486,6 +3548,7 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
     async function startDashboard() {
         await loadDevices();
         await updateSiteSummary();
+        loadAlarmHistory();
 
         if (selectedSite) {
             await loadAssetsForSite(selectedSite);
@@ -3498,7 +3561,7 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
 
 
         if (selectedAssetId) {
-            ;
+            loadAssetTemperatureData();
         } else {
             runCurrentDashboard();
         }
@@ -3518,6 +3581,7 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
         summaryTimer = setInterval(() => {
             updateSiteSummary();
         }, 10000);
+        setInterval(loadAlarmHistory, 10000);
     }
 
     function runCurrentDashboard() {
