@@ -857,9 +857,38 @@ body::after {
 }
 
 
+.incident-status {
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.incident-status.OPEN {
+    background: rgba(255,0,0,0.15);
+    color: #ff4d4d;
+}
+
+.incident-status.ACKNOWLEDGED {
+    background: rgba(255,200,0,0.15);
+    color: #ffcc00;
+}
+
+.incident-status.RESOLVED {
+    background: rgba(0,255,100,0.15);
+    color: #00ff66;
+}
+
+.incident-status.INFO {
+    background: rgba(0,180,255,0.15);
+    color: #38bdf8;
+}
+
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 </head>
 
@@ -985,6 +1014,33 @@ body::after {
 </div>
 
 
+<div class="card" id="aiRecommendationCard">
+    <h3>🧰 AI Maintenance Recommendation</h3>
+    <ul id="aiRecommendations"></ul>
+</div>
+
+
+
+<div class="card">
+    <h3>📜 AI Incident Timeline</h3>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Device</th>
+                <th>Level</th>
+                <th>Score</th>
+                <th>Status</th>
+                <th>Message</th>
+            </tr>
+        </thead>
+
+        <tbody id="incidentTimelineBody"></tbody>
+    </table>
+</div>
+
 
 
 <div class="card" id="deviceHealthCard">
@@ -1017,6 +1073,34 @@ body::after {
     </table>
 </div>
 
+
+
+
+<div class="card">
+    <h3>📈 AI Anomaly Score Trend</h3>
+    <div style="height:350px;">
+        <canvas id="anomalyScoreChart"></canvas>
+    </div>
+</div>
+
+
+
+<div class="card">
+    <h3>🌡 Real-Time Temperature Trend</h3>
+
+    <div style="height:350px;">
+        <canvas id="temperatureChart"></canvas>
+    </div>
+</div>
+
+
+<div class="card">
+    <h3>🧠 AI Observability Trend</h3>
+
+    <div style="height:380px;">
+        <canvas id="aiObservabilityChart"></canvas>
+    </div>
+</div>
 
 
 <div class="selector-bar">
@@ -1209,6 +1293,8 @@ body::after {
     </div>
 
 
+   
+
 
     <div class="grid">
         <div class="card">
@@ -1393,6 +1479,229 @@ body::after {
     let allAssets = [];
     let selectedAssetId = "";
     let lastAlertLevel = null;
+
+
+
+
+    async function loadIncidentTimeline() {
+            let r = await fetch("/incident_timeline");
+            let data = await r.json();
+
+            let body = document.getElementById("incidentTimelineBody");
+            body.innerHTML = "";
+
+            data.forEach(e => {
+                body.innerHTML += `
+            <tr>
+                <td>${e.time}</td>
+                <td>${e.type}</td>
+                <td>${e.device}</td>
+                <td><span class="incident-level ${e.level}">${e.level}</span></td>
+                <td>${e.score}</td>
+                <td><span class="incident-status ${e.status || 'INFO'}">${e.status || '-'}</span></td>
+                <td>${e.message}</td>
+            </tr>
+        `;
+            });
+        }
+
+
+
+
+    function updateAIRecommendations(m) {
+
+            const list = document.getElementById("aiRecommendations");
+
+            if (!list) return;
+
+            list.innerHTML = "";
+
+            let recs = m.ai_recommendations || [];
+
+            let color = "#00ff99";
+
+            if (m.anomaly_level === "LOW") {
+                color = "#ffcc00";
+            }
+            else if (m.anomaly_level === "MEDIUM") {
+                color = "#ff8800";
+            }
+            else if (m.anomaly_level === "HIGH") {
+                color = "#ff3333";
+            }
+
+            recs.forEach(r => {
+                list.innerHTML += `
+            <li style="
+                margin-bottom:10px;
+                color:${color};
+                font-weight:bold;
+            ">
+                ⚙ ${r}
+            </li>
+        `;
+            });
+        }
+
+
+
+
+    async function loadAIObservabilityTrend() {
+            if (!selectedAssetId) return;
+
+            let r = await fetch(`/asset_temperature_data?asset_id=${selectedAssetId}`);
+            let d = await r.json();
+
+            let labels = d.timestamps.map(t => t.split(" ")[1] || t);
+
+            let predictedLine = d.temperature.map(() => null);
+
+            if (d.predicted_temperature !== undefined) {
+                predictedLine[predictedLine.length - 1] = d.predicted_temperature;
+            }
+
+            let anomalyLine = d.temperature.map(() => d.anomaly_score || 0);
+
+            aiObservabilityChart.data.labels = labels;
+            aiObservabilityChart.data.datasets[0].data = d.temperature;
+            aiObservabilityChart.data.datasets[1].data = d.humidity;
+            aiObservabilityChart.data.datasets[2].data = anomalyLine;
+            aiObservabilityChart.data.datasets[3].data = predictedLine;
+
+            aiObservabilityChart.update();
+        }
+
+
+
+
+    let aiObservabilityChart = new Chart(
+            document.getElementById("aiObservabilityChart"),
+            {
+                type: "line",
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: "Temperature °C",
+                            data: [],
+                            borderWidth: 3,
+                            tension: 0.3
+                        },
+                        {
+                            label: "Humidity %",
+                            data: [],
+                            borderWidth: 3,
+                            tension: 0.3
+                        },
+                        {
+                            label: "Anomaly Score",
+                            data: [],
+                            borderWidth: 3,
+                            tension: 0.3
+                        },
+                        {
+                            label: "Predicted Temp °C",
+                            data: [],
+                            borderWidth: 3,
+                            borderDash: [8, 6],
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            }
+        );
+
+
+
+    async function loadTemperatureTrend() {
+
+            if (!selectedAssetId) return;
+
+            let r = await fetch(
+                `/asset_temperature_data?asset_id=${selectedAssetId}`
+            );
+
+            let d = await r.json();
+
+            let labels =
+                d.timestamps.map(
+                    t => t.split(" ")[1] || t
+                );
+
+            temperatureChart.data.labels = labels;
+
+            temperatureChart.data.datasets[0].data =
+                d.temperature;
+
+            temperatureChart.update();
+        }
+
+
+
+
+
+    let temperatureChart = new Chart(
+            document.getElementById("temperatureChart"),
+            {
+                type: "line",
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: "Temperature °C",
+                            data: [],
+                            borderWidth: 3,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            }
+        );
+
+
+
+
+
+    let anomalyScoreChart = new Chart(
+            document.getElementById("anomalyScoreChart"),
+            {
+                type: "line",
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: "Anomaly Score",
+                            data: []
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            }
+        );
+
+        async function loadAnomalyScoreTrend() {
+            let r = await fetch("/anomaly_score_trend");
+            let d = await r.json();
+
+            let labels = d.timestamps.map(t => t.split(" ")[1] || t);
+
+            anomalyScoreChart.data.labels = labels;
+            anomalyScoreChart.data.datasets[0].data = d.scores;
+            anomalyScoreChart.update();
+        }
+
+
 
 
 
@@ -2648,6 +2957,7 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
 
             updateAIHealth(m);
             updatePrediction(m);
+            updateAIRecommendations(m);
 
             document.getElementById("lastUpdate").innerText =
                 new Date().toLocaleTimeString();
@@ -3549,6 +3859,10 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
         await loadDevices();
         await updateSiteSummary();
         loadAlarmHistory();
+        loadAnomalyScoreTrend();
+        loadTemperatureTrend();
+        loadAIObservabilityTrend();
+        loadIncidentTimeline();
 
         if (selectedSite) {
             await loadAssetsForSite(selectedSite);
@@ -3582,6 +3896,10 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
             updateSiteSummary();
         }, 10000);
         setInterval(loadAlarmHistory, 10000);
+        setInterval(loadAnomalyScoreTrend, 10000);
+        setInterval(loadTemperatureTrend, 10000);
+        setInterval(loadAIObservabilityTrend, 10000);
+        setInterval(loadIncidentTimeline, 10000);
     }
 
     function runCurrentDashboard() {

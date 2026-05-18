@@ -43,9 +43,141 @@ register_admin_routes(app)
 
 
 
+
+
+
+
 # ---------------- THREADS ----------------
 # threading.Thread(target=udp_listener, daemon=True).start()
 threading.Thread(target=mqtt_listener, daemon=True).start()
+
+
+
+@app.route("/incident_timeline")
+def incident_timeline():
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        timestamp,
+        device_eui,
+        anomaly_level,
+        anomaly_score,
+        anomaly_reason,
+        incident_status
+    FROM anomaly_events
+    ORDER BY timestamp DESC
+    LIMIT 25
+    """)
+
+    anomalies = cursor.fetchall()
+
+    cursor.execute("""
+    SELECT
+        acknowledged_at,
+        device_eui,
+        acknowledged_by,
+        alarm_message
+    FROM alarm_acknowledgements
+    ORDER BY acknowledged_at DESC
+    LIMIT 25
+    """)
+
+    acknowledgements = cursor.fetchall()
+    conn.close()
+
+    timeline = []
+
+    for a in anomalies:
+        timeline.append({
+            "time": a[0],
+            "type": "AI DETECTION",
+            "device": a[1],
+            "level": a[2],
+            "score": a[3],
+            "message": a[4],
+            "status": a[5]
+        })
+    for ack in acknowledgements:
+        timeline.append({
+            "time": ack[0],
+            "type": "ACKNOWLEDGED",
+            "device": ack[1],
+            "level": "INFO",
+            "score": "-",
+            "message": f"{ack[2]} acknowledged: {ack[3]}"
+        })
+
+    timeline.sort(
+        key=lambda x: x["time"],
+        reverse=True
+    )
+
+    return jsonify(timeline[:50])
+
+
+def generate_ai_recommendation(anomaly_reasons, temperature=None, humidity=None, battery=None):
+
+    recommendations = []
+
+    reasons_text = ", ".join(anomaly_reasons or [])
+
+    if "High temperature" in reasons_text:
+        recommendations.append("Check cooling fan or ventilation.")
+        recommendations.append("Inspect generator room airflow.")
+        recommendations.append("Confirm load is not above safe operating range.")
+
+    if "Device offline" in reasons_text:
+        recommendations.append("Check device power supply.")
+        recommendations.append("Verify network or Modbus communication.")
+        recommendations.append("Inspect gateway connection.")
+
+    if "battery" in reasons_text.lower():
+        recommendations.append("Inspect battery level and replace if weak.")
+
+    if humidity is not None and humidity > 80:
+        recommendations.append("Check for moisture or poor environmental control.")
+
+    if not recommendations:
+        recommendations.append("Continue monitoring. No immediate maintenance action required.")
+
+    return {
+        "ai_recommendations": recommendations
+    }
+
+
+
+
+@app.route("/anomaly_score_trend")
+def anomaly_score_trend():
+    conn = sqlite3.connect("iot.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT timestamp, anomaly_score, anomaly_level
+    FROM anomaly_events
+    ORDER BY timestamp DESC
+    LIMIT 50
+    """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    rows = rows[::-1]
+
+    data = {
+        "timestamps": [],
+        "scores": [],
+        "levels": []
+    }
+
+    for r in rows:
+        data["timestamps"].append(r[0])
+        data["scores"].append(r[1])
+        data["levels"].append(r[2])
+
+    return jsonify(data)
 
 
 
@@ -104,6 +236,16 @@ def acknowledge_alarm():
     )
     VALUES (?, ?, ?)
     """, (device_eui, alarm_message, acknowledged_by))
+
+
+    cursor.execute("""
+    UPDATE anomaly_events
+    SET incident_status = 'ACKNOWLEDGED'
+    WHERE device_eui = ?
+    AND incident_status = 'OPEN'
+    ORDER BY timestamp DESC
+    LIMIT 1
+    """, (device_eui,))
 
     conn.commit()
     conn.close()
@@ -266,8 +408,46 @@ def asset_temperature_data():
         anomaly = analyze_temperature(status="OFFLINE")
 
     data.update(anomaly)
+
+    recommendation = generate_ai_recommendation(
+        anomaly.get("anomaly_reasons", []),
+        temperature=data["temperature"][-1] if data["temperature"] else None,
+        humidity=data["humidity"][-1] if data["humidity"] else None,
+        battery=data["battery"][-1] if data["battery"] else None
+    )
+
+    data.update(recommendation)
+
     prediction = predict_temperature_trend(data["temperature"])
     data.update(prediction)
+    if anomaly["anomaly_level"] == "NORMAL":
+
+        conn = sqlite3.connect("iot.db")
+        cursor = conn.cursor()
+
+        cursor.execute("""
+        SELECT device_eui
+        FROM asset_devices
+        WHERE asset_id = ?
+        AND is_active = 1
+        LIMIT 1
+        """, (asset_id,))
+
+        row = cursor.fetchone()
+
+        if row:
+            device_eui = row[0]
+
+            cursor.execute("""
+            UPDATE anomaly_events
+            SET incident_status = 'RESOLVED',
+                resolved_at = CURRENT_TIMESTAMP
+            WHERE device_eui = ?
+            AND incident_status IN ('OPEN', 'ACKNOWLEDGED')
+            """, (device_eui,))
+
+        conn.commit()
+        conn.close()
 
     if anomaly["anomaly_level"] in ["LOW", "MEDIUM", "HIGH"]:
 
