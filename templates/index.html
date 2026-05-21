@@ -1481,6 +1481,23 @@ body::after {
     let lastAlertLevel = null;
 
 
+
+
+
+    function appendChartPoint(chart, label, value, maxPoints = 50) {
+            chart.data.labels.push(label);
+            chart.data.datasets[0].data.push(value);
+
+            if (chart.data.labels.length > maxPoints) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+            }
+
+            chart.update();
+        }
+
+
+
     let liveSocket = null;
 
     function startLiveTelemetrySocket() {
@@ -1512,32 +1529,39 @@ body::after {
 
 
     function handleLiveTelemetry(data) {
-        if (!data || !data.payload) return;
+            if (!data) return;
 
-        let payloadText = data.payload.replaceAll("'", '"');
-        let payload = JSON.parse(payloadText);
+            if (data.device_eui !== selectedDeviceEui) return;
 
-        if (data.device_eui !== selectedDeviceEui) return;
+            if (data.temperature !== undefined) {
+                document.getElementById("tempValue").innerText = data.temperature;
+            }
 
-        if (payload.temperature !== undefined) {
-            document.getElementById("tempValue").innerText = payload.temperature;
+            if (data.humidity !== undefined) {
+                document.getElementById("humidityValue").innerText = data.humidity;
+            }
+
+            if (data.battery !== undefined) {
+                document.getElementById("batteryValue").innerText = data.battery;
+            }
+
+            if (data.movement !== undefined) {
+                document.getElementById("movementValue").innerText = data.movement;
+            }
+
+            document.getElementById("lastUpdate").innerText =
+                new Date().toLocaleTimeString();
+
+            let nowLabel = new Date().toLocaleTimeString();
+
+            if (data.temperature !== undefined) {
+                appendChartPoint(temperatureChart, nowLabel, data.temperature);
+            }
+
+            if (data.humidity !== undefined) {
+                appendChartPoint(humidityChart, nowLabel, data.humidity);
+            }
         }
-
-        if (payload.humidity !== undefined) {
-            document.getElementById("humidityValue").innerText = payload.humidity;
-        }
-
-        if (payload.battery !== undefined) {
-            document.getElementById("batteryValue").innerText = payload.battery;
-        }
-
-        if (payload.movement !== undefined) {
-            document.getElementById("movementValue").innerText = payload.movement;
-        }
-
-        document.getElementById("lastUpdate").innerText =
-            new Date().toLocaleTimeString();
-    }
 
 
 
