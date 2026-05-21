@@ -1481,6 +1481,64 @@ body::after {
     let lastAlertLevel = null;
 
 
+    let liveSocket = null;
+
+    function startLiveTelemetrySocket() {
+        liveSocket = new WebSocket("ws://127.0.0.1:8000/ws/telemetry");
+
+        liveSocket.onopen = () => {
+            console.log("Live WebSocket connected");
+        };
+
+        liveSocket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            console.log("LIVE TELEMETRY:", data);
+
+            handleLiveTelemetry(data);
+        };
+
+        liveSocket.onerror = (err) => {
+            console.log("WebSocket error:", err);
+        };
+
+        liveSocket.onclose = () => {
+            console.log("WebSocket closed. Reconnecting...");
+            setTimeout(startLiveTelemetrySocket, 3000);
+        };
+    }
+
+
+
+
+
+    function handleLiveTelemetry(data) {
+        if (!data || !data.payload) return;
+
+        let payloadText = data.payload.replaceAll("'", '"');
+        let payload = JSON.parse(payloadText);
+
+        if (data.device_eui !== selectedDeviceEui) return;
+
+        if (payload.temperature !== undefined) {
+            document.getElementById("tempValue").innerText = payload.temperature;
+        }
+
+        if (payload.humidity !== undefined) {
+            document.getElementById("humidityValue").innerText = payload.humidity;
+        }
+
+        if (payload.battery !== undefined) {
+            document.getElementById("batteryValue").innerText = payload.battery;
+        }
+
+        if (payload.movement !== undefined) {
+            document.getElementById("movementValue").innerText = payload.movement;
+        }
+
+        document.getElementById("lastUpdate").innerText =
+            new Date().toLocaleTimeString();
+    }
+
 
 
     async function loadIncidentTimeline() {
@@ -3857,6 +3915,7 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
 
     async function startDashboard() {
         await loadDevices();
+        startLiveTelemetrySocket();
         await updateSiteSummary();
         loadAlarmHistory();
         loadAnomalyScoreTrend();

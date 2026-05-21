@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Telemetry Test</title>
+</head>
+<body style="background:black;color:lime;font-family:monospace">
+
+    <h2>Live Telemetry Stream</h2>
+
+    <pre id="output"></pre>
+
+    <script>
+
+        const output = document.getElementById("output");
+
+        const ws = new WebSocket("ws://127.0.0.1:8000/ws/telemetry");
+
+        ws.onopen = () => {
+            console.log("WebSocket connected");
+        };
+
+        ws.onmessage = (event) => {
+            output.innerText = event.data;
+        };
+
+        ws.onerror = (err) => {
+            console.log("WebSocket error:", err);
+        };
+
+        ws.onclose = () => {
+            console.log("WebSocket closed");
+        };
+
+    </script>
+
+</body>
+</html>

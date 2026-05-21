@@ -78,4 +78,4 @@ while True:
     print("-" * 50)
 
     counter += 1
-    time.sleep(5)
+    time.sleep(1)

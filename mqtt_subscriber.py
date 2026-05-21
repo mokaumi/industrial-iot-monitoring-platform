@@ -5,9 +5,11 @@ import paho.mqtt.client as mqtt
 
 from database import insert_data
 
+
 BROKER = "localhost"
 PORT = 1883
 TOPIC = "iot/telemetry"
+NORMALIZED_TOPIC = "iot/normalized"
 
 
 def on_connect(client, userdata, flags, rc):
@@ -47,6 +49,18 @@ def on_message(client, userdata, msg):
             str(decoded_payload),
             decoded_payload.get("temperature")
         )
+        
+        
+        
+
+
+        client.publish(
+                NORMALIZED_TOPIC,
+                json.dumps(decoded_payload)
+        )
+
+        print("Published normalized telemetry")
+
 
         print("Inserted MQTT data into sensor_data")
 
