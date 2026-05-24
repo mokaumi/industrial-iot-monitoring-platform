@@ -18,7 +18,24 @@ def on_mqtt_message(client, userdata, msg):
     try:
         payload = msg.payload.decode()
         latest_message = json.loads(payload)
-        print("FastAPI received normalized MQTT:", latest_message)
+        
+        temperature = latest_message.get("temperature")
+
+        if temperature is not None:
+            if temperature >= 70:
+                latest_message["live_anomaly_level"] = "HIGH"
+                latest_message["live_anomaly_score"] = 100
+                latest_message["live_anomaly_reason"] = "High temperature"
+            elif temperature >= 45:
+                latest_message["live_anomaly_level"] = "LOW"
+                latest_message["live_anomaly_score"] = 35
+                latest_message["live_anomaly_reason"] = "High temperature"
+            else:
+                latest_message["live_anomaly_level"] = "NORMAL"
+                latest_message["live_anomaly_score"] = 0
+                latest_message["live_anomaly_reason"] = "Normal"
+                
+                print("FastAPI received normalized MQTT:", latest_message)
 
     except Exception as e:
         print("FastAPI MQTT error:", e)

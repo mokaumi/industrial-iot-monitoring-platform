@@ -1055,6 +1055,24 @@ body::after {
 </div>
 
 
+
+<div class="card">
+    <h3>📡 Device Heartbeat Monitor</h3>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Device EUI</th>
+                <th>Status</th>
+                <th>Last Seen</th>
+                <th>Seconds Ago</th>
+            </tr>
+        </thead>
+        <tbody id="heartbeatBody"></tbody>
+    </table>
+</div>
+
+
 <div class="card">
     <h3>🚨 Recent AI Incidents</h3>
 
@@ -1479,8 +1497,72 @@ body::after {
     let allAssets = [];
     let selectedAssetId = "";
     let lastAlertLevel = null;
+    let lastLiveIncidentTime = 0;
+    let liveIncidentCooldown = 60000; // 1 minute
+    let currentAlertDeviceEui = null;
 
 
+
+
+    async function loadHeartbeatStatus() {
+            let r = await fetch("/device_heartbeat_status");
+            let devices = await r.json();
+
+            let body = document.getElementById("heartbeatBody");
+            body.innerHTML = "";
+
+            devices.forEach(d => {
+                body.innerHTML += `
+        <tr>
+            <td>${d.device_eui}</td>
+            <td>
+                <span class="incident-status ${d.status}">
+                    ${d.status}
+                </span>
+            </td>
+            <td>${d.last_seen}</td>
+            <td>${d.seconds_since_seen}</td>
+        </tr>
+        `;
+            });
+        }
+
+
+
+
+
+    function prependIncidentRow(data) {
+
+            const tbody = document.getElementById("incidentTimelineBody");
+
+            if (!tbody) return;
+
+            let row = `
+        <tr>
+            <td>${new Date().toLocaleString()}</td>
+            <td>LIVE AI</td>
+            <td>${data.device_eui}</td>
+            <td>
+                <span class="badge bg-danger">
+                    ${data.live_anomaly_level}
+                </span>
+            </td>
+            <td>${data.live_anomaly_score}</td>
+            <td>
+                <span class="badge bg-warning text-dark">
+                    OPEN
+                </span>
+            </td>
+            <td>${data.live_anomaly_reason}</td>
+        </tr>
+    `;
+
+            tbody.insertAdjacentHTML("afterbegin", row);
+
+            while (tbody.rows.length > 20) {
+                tbody.deleteRow(-1);
+            }
+        }
 
 
 
@@ -1561,7 +1643,39 @@ body::after {
             if (data.humidity !== undefined) {
                 appendChartPoint(humidityChart, nowLabel, data.humidity);
             }
+            
+
+
+
+            if (data.live_anomaly_level) {
+                document.getElementById("anomalyScore").innerText =
+                    data.live_anomaly_score ?? "--";
+
+                document.getElementById("anomalyLevel").innerText =
+                    data.live_anomaly_level;
+
+                document.getElementById("anomalyReasons").innerHTML =
+                    `<li>${data.live_anomaly_reason}</li>`;
+            }
+
+
+
+
+            let now = Date.now();
+
+            if (
+                data.live_anomaly_level &&
+                data.live_anomaly_level !== "NORMAL" &&
+                now - lastLiveIncidentTime > liveIncidentCooldown
+            ) {
+                prependIncidentRow(data);
+                lastLiveIncidentTime = now;
+            }
+
         }
+
+
+        
 
 
 
@@ -1837,6 +1951,8 @@ body::after {
             const text = document.getElementById("alertMessage");
             const sound = document.getElementById("alertSound");
 
+            currentAlertDeviceEui = selectedDeviceEui || "UNKNOWN";
+
             text.innerText = message;
             popup.classList.remove("hidden");
 
@@ -1865,7 +1981,7 @@ body::after {
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    device_eui: selectedDeviceEui || "ASSET_MODE",
+                    device_eui: currentAlertDeviceEui || selectedDeviceEui || "ASSET_MODE",
                     alarm_message: message
                 })
             });
@@ -3946,6 +4062,7 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
         loadTemperatureTrend();
         loadAIObservabilityTrend();
         loadIncidentTimeline();
+        
 
         if (selectedSite) {
             await loadAssetsForSite(selectedSite);
@@ -3983,6 +4100,8 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
         setInterval(loadTemperatureTrend, 10000);
         setInterval(loadAIObservabilityTrend, 10000);
         setInterval(loadIncidentTimeline, 10000);
+        loadHeartbeatStatus();
+        setInterval(loadHeartbeatStatus, 10000);
     }
 
     function runCurrentDashboard() {

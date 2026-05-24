@@ -53,9 +53,111 @@ threading.Thread(target=mqtt_listener, daemon=True).start()
 
 
 
+
+def create_offline_incidents(timeout_seconds=60):
+    conn = sqlite3.connect("iot.db", timeout=10)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        sd.device_eui,
+        MAX(sd.timestamp) as last_seen
+    FROM sensor_data sd
+    JOIN asset_devices ad
+        ON TRIM(sd.device_eui) = TRIM(ad.device_eui)
+    WHERE ad.is_active = 1
+    GROUP BY sd.device_eui
+    """)
+
+    rows = cursor.fetchall()
+    now = datetime.now()
+
+    for device_eui, last_seen in rows:
+        try:
+            last_time = datetime.fromisoformat(last_seen)
+            diff = int((now - last_time).total_seconds())
+
+            if diff > timeout_seconds:
+
+                already_exists = recent_anomaly_exists(
+                    device_eui,
+                    "HIGH",
+                    minutes=10
+                )
+
+                if not already_exists:
+                    insert_anomaly_event(
+                        "HEARTBEAT",
+                        device_eui,
+                        "device_heartbeat",
+                        100,
+                        "HIGH",
+                        f"Device offline. No telemetry for {diff} seconds"
+                    )
+
+        except Exception as e:
+            print("Offline incident error:", e)
+
+    conn.close()
+
+
+
+
+
+@app.route("/device_heartbeat_status")
+def device_heartbeat_status():
+    create_offline_incidents(timeout_seconds=60)
+
+    conn = sqlite3.connect("iot.db", timeout=10)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        sd.device_eui,
+        MAX(sd.timestamp) as last_seen
+    FROM sensor_data sd
+    JOIN asset_devices ad
+        ON TRIM(sd.device_eui) = TRIM(ad.device_eui)
+    WHERE ad.is_active = 1
+    GROUP BY sd.device_eui
+    ORDER BY last_seen DESC
+    """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    devices = []
+
+    now = datetime.now()
+
+    for r in rows:
+        device_eui = r[0]
+        last_seen = r[1]
+
+        try:
+            last_time = datetime.fromisoformat(last_seen)
+            diff_seconds = int((now - last_time).total_seconds())
+
+            status = "ONLINE" if diff_seconds <= 60 else "OFFLINE"
+
+        except Exception:
+            diff_seconds = None
+            status = "UNKNOWN"
+
+        devices.append({
+            "device_eui": device_eui,
+            "last_seen": last_seen,
+            "seconds_since_seen": diff_seconds,
+            "status": status
+        })
+
+    return jsonify(devices)
+
+
+
 @app.route("/incident_timeline")
 def incident_timeline():
-    conn = sqlite3.connect("iot.db")
+    conn = sqlite3.connect("iot.db", timeout=10)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -151,7 +253,7 @@ def generate_ai_recommendation(anomaly_reasons, temperature=None, humidity=None,
 
 @app.route("/anomaly_score_trend")
 def anomaly_score_trend():
-    conn = sqlite3.connect("iot.db")
+    conn = sqlite3.connect("iot.db", timeout=10)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -185,7 +287,7 @@ def anomaly_score_trend():
 @app.route("/alarm_history")
 def alarm_history():
 
-    conn = sqlite3.connect("iot.db")
+    conn = sqlite3.connect("iot.db", timeout=10)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -225,7 +327,7 @@ def acknowledge_alarm():
     alarm_message = data.get("alarm_message", "UNKNOWN")
     acknowledged_by = session.get("user", "UNKNOWN")
 
-    conn = sqlite3.connect("iot.db")
+    conn = sqlite3.connect("iot.db", timeout=10)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -256,7 +358,7 @@ def acknowledge_alarm():
 
 @app.route("/recent_incidents")
 def recent_incidents():
-    conn = sqlite3.connect("iot.db")
+    conn = sqlite3.connect("iot.db", timeout=10)
     cursor = conn.cursor()
 
     
@@ -289,7 +391,7 @@ def recent_incidents():
 
 
 def calculate_device_reliability(device_eui):
-    conn = sqlite3.connect("iot.db")
+    conn = sqlite3.connect("iot.db", timeout=10)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -332,7 +434,7 @@ def asset_health():
     if not asset_id:
         return jsonify({"error": "asset_id is required"}), 400
 
-    conn = sqlite3.connect("iot.db")
+    conn = sqlite3.connect("iot.db", timeout=10)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -422,7 +524,7 @@ def asset_temperature_data():
     data.update(prediction)
     if anomaly["anomaly_level"] == "NORMAL":
 
-        conn = sqlite3.connect("iot.db")
+        conn = sqlite3.connect("iot.db", timeout=10)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -451,7 +553,7 @@ def asset_temperature_data():
 
     if anomaly["anomaly_level"] in ["LOW", "MEDIUM", "HIGH"]:
 
-        conn = sqlite3.connect("iot.db")
+        conn = sqlite3.connect("iot.db", timeout=10)
         cursor = conn.cursor()
 
         cursor.execute("""
