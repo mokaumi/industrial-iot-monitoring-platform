@@ -4,3 +4,4 @@ __pycache__/
 *.db-journal
 *.log
 openvpn-status.log
+iot.db
