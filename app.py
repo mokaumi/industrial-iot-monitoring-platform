@@ -20,6 +20,7 @@ from udp_handler import udp_listener
 import base64
 import os
 from anomaly import analyze_temperature, analyze_smoke, analyze_ac_meter, predict_temperature_trend
+from postgres_db import get_pg_connection
 
 
 
@@ -108,22 +109,21 @@ def create_offline_incidents(timeout_seconds=60):
 def device_heartbeat_status():
     create_offline_incidents(timeout_seconds=60)
 
-    conn = sqlite3.connect("iot.db", timeout=10)
+    conn = get_pg_connection()
     cursor = conn.cursor()
+
 
     cursor.execute("""
     SELECT
-        sd.device_eui,
-        MAX(sd.timestamp) as last_seen
-    FROM sensor_data sd
-    JOIN asset_devices ad
-        ON TRIM(sd.device_eui) = TRIM(ad.device_eui)
-    WHERE ad.is_active = 1
-    GROUP BY sd.device_eui
+        device_eui,
+        MAX(timestamp) as last_seen
+    FROM sensor_data
+    GROUP BY device_eui
     ORDER BY last_seen DESC
     """)
-
+    
     rows = cursor.fetchall()
+    cursor.close()
     conn.close()
 
     devices = []
@@ -135,7 +135,7 @@ def device_heartbeat_status():
         last_seen = r[1]
 
         try:
-            last_time = datetime.fromisoformat(last_seen)
+            last_time = last_seen
             diff_seconds = int((now - last_time).total_seconds())
 
             status = "ONLINE" if diff_seconds <= 60 else "OFFLINE"

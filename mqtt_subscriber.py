@@ -5,6 +5,7 @@ import paho.mqtt.client as mqtt
 
 from database import insert_data
 
+from postgres_db import insert_sensor_data_pg
 
 BROKER = "localhost"
 PORT = 1883
@@ -52,6 +53,28 @@ def on_message(client, userdata, msg):
         
         
         
+        try:
+            insert_sensor_data_pg(
+                decoded_payload.get("site", "UNKNOWN_SITE"),
+                decoded_payload.get("device_name", "MQTT Device"),
+                decoded_payload.get("device_type", "temperature_sensor"),
+                decoded_payload.get("device_eui", "UNKNOWN_EUI"),
+                decoded_payload.get("freq", "MQTT"),
+                decoded_payload.get("rssi", 0),
+                decoded_payload.get("snr", 0),
+                str(decoded_payload),
+                decoded_payload.get("temperature"),
+                None,
+                None,
+                None
+            )
+
+            print("Inserted MQTT data into PostgreSQL")
+
+        except Exception as pg_error:
+            print("PostgreSQL insert error:", pg_error)
+            
+            
 
 
         client.publish(
