@@ -54,6 +54,15 @@ CREATE TABLE IF NOT EXISTS alarm_acknowledgements (
 );
 """)
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS asset_devices (
+    id SERIAL PRIMARY KEY,
+    asset_id INTEGER,
+    device_eui TEXT,
+    is_active INTEGER DEFAULT 1,
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+""")
 conn.commit()
 cursor.close()
 conn.close()

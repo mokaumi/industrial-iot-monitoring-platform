@@ -21,6 +21,8 @@ import base64
 import os
 from anomaly import analyze_temperature, analyze_smoke, analyze_ac_meter, predict_temperature_trend
 from postgres_db import get_pg_connection
+from postgres_db import get_data_by_asset_pg   
+from postgres_db import insert_anomaly_event_pg 
 
 
 
@@ -86,6 +88,7 @@ def create_offline_incidents(timeout_seconds=60):
                     minutes=10
                 )
 
+
                 if not already_exists:
                     insert_anomaly_event(
                         "HEARTBEAT",
@@ -96,6 +99,16 @@ def create_offline_incidents(timeout_seconds=60):
                         f"Device offline. No telemetry for {diff} seconds"
                     )
 
+                    insert_anomaly_event_pg(
+                        "HEARTBEAT",
+                        device_eui,
+                        "device_heartbeat",
+                        100,
+                        "HIGH",
+                        f"Device offline. No telemetry for {diff} seconds"
+                    )
+                
+                
         except Exception as e:
             print("Offline incident error:", e)
 
@@ -115,10 +128,13 @@ def device_heartbeat_status():
 
     cursor.execute("""
     SELECT
-        device_eui,
-        MAX(timestamp) as last_seen
-    FROM sensor_data
-    GROUP BY device_eui
+        sd.device_eui,
+        MAX(sd.timestamp) as last_seen
+    FROM sensor_data sd
+    JOIN asset_devices ad
+        ON TRIM(sd.device_eui) = TRIM(ad.device_eui)
+    WHERE ad.is_active = 1
+    GROUP BY sd.device_eui
     ORDER BY last_seen DESC
     """)
     
@@ -157,7 +173,7 @@ def device_heartbeat_status():
 
 @app.route("/incident_timeline")
 def incident_timeline():
-    conn = sqlite3.connect("iot.db", timeout=10)
+    conn = get_pg_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -187,13 +203,14 @@ def incident_timeline():
     """)
 
     acknowledgements = cursor.fetchall()
+    cursor.close()
     conn.close()
 
     timeline = []
 
     for a in anomalies:
         timeline.append({
-            "time": a[0],
+            "time": str(a[0]),
             "type": "AI DETECTION",
             "device": a[1],
             "level": a[2],
@@ -203,7 +220,7 @@ def incident_timeline():
         })
     for ack in acknowledgements:
         timeline.append({
-            "time": ack[0],
+            "time": str(ack[0]),
             "type": "ACKNOWLEDGED",
             "device": ack[1],
             "level": "INFO",
@@ -253,7 +270,7 @@ def generate_ai_recommendation(anomaly_reasons, temperature=None, humidity=None,
 
 @app.route("/anomaly_score_trend")
 def anomaly_score_trend():
-    conn = sqlite3.connect("iot.db", timeout=10)
+    conn = get_pg_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -264,6 +281,8 @@ def anomaly_score_trend():
     """)
 
     rows = cursor.fetchall()
+
+    cursor.close()
     conn.close()
 
     rows = rows[::-1]
@@ -275,12 +294,11 @@ def anomaly_score_trend():
     }
 
     for r in rows:
-        data["timestamps"].append(r[0])
+        data["timestamps"].append(str(r[0]))
         data["scores"].append(r[1])
         data["levels"].append(r[2])
 
     return jsonify(data)
-
 
 
 
@@ -358,18 +376,21 @@ def acknowledge_alarm():
 
 @app.route("/recent_incidents")
 def recent_incidents():
-    conn = sqlite3.connect("iot.db", timeout=10)
+    conn = get_pg_connection()
     cursor = conn.cursor()
-
     
-
     cursor.execute("""
-    SELECT timestamp, device_eui, anomaly_level, anomaly_score, anomaly_reason
+    SELECT
+        timestamp,
+        device_eui,
+        anomaly_level,
+        anomaly_score,
+        anomaly_reason
     FROM anomaly_events
     ORDER BY timestamp DESC
     LIMIT 20
     """)
-
+    
     rows = cursor.fetchall()
     conn.close()
 
@@ -377,7 +398,7 @@ def recent_incidents():
 
     for r in rows:
         incidents.append({
-            "timestamp": r[0],
+            "timestamp": str(r[0]),
             "device_eui": r[1],
             "level": r[2],
             "score": r[3],
@@ -470,7 +491,8 @@ def asset_temperature_data():
     if not asset_id:
         return jsonify({"error": "asset_id is required"}), 400
 
-    rows = get_data_by_asset(asset_id)
+    
+    rows = get_data_by_asset_pg(asset_id)
     rows = rows[::-1]
 
     data = {
@@ -569,6 +591,16 @@ def asset_temperature_data():
 
         if row:
             device_eui = row[0]
+            reason = ", ".join(anomaly["anomaly_reasons"])
+
+            insert_anomaly_event_pg(
+                "ASSET_MODE",
+                device_eui,
+                "asset_temperature_sensor",
+                anomaly["anomaly_score"],
+                anomaly["anomaly_level"],
+                reason
+            )
 
             already_exists = recent_anomaly_exists(
                 device_eui,
@@ -583,7 +615,7 @@ def asset_temperature_data():
                     "asset_temperature_sensor",
                     anomaly["anomaly_score"],
                     anomaly["anomaly_level"],
-                    ", ".join(anomaly["anomaly_reasons"])
+                    reason
                 )
 
     return jsonify(data)
@@ -1329,6 +1361,9 @@ def temperature_data():
             anomaly["anomaly_level"],
             minutes=5
         )
+        
+        
+        
 
         if not already_exists:
             insert_anomaly_event(
@@ -1338,6 +1373,16 @@ def temperature_data():
                 anomaly["anomaly_score"],
                 anomaly["anomaly_level"],
                 ", ".join(anomaly["anomaly_reasons"])
+            )
+            
+            
+            insert_anomaly_event_pg(
+                "HEARTBEAT",
+                device_eui,
+                "device_heartbeat",
+                100,
+                "HIGH",
+                f"Device offline. No telemetry for {diff} seconds"
             )
 
 

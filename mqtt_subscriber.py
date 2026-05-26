@@ -6,6 +6,7 @@ import paho.mqtt.client as mqtt
 from database import insert_data
 
 from postgres_db import insert_sensor_data_pg
+from database import get_asset_by_device
 
 BROKER = "localhost"
 PORT = 1883
@@ -53,6 +54,17 @@ def on_message(client, userdata, msg):
         
         
         
+        asset = get_asset_by_device(decoded_payload.get("device_eui"))
+
+        asset_id = None
+        asset_name = None
+        asset_type = None
+
+        if asset:
+            asset_id = asset[0]
+            asset_name = asset[2]
+            asset_type = asset[3]
+
         try:
             insert_sensor_data_pg(
                 decoded_payload.get("site", "UNKNOWN_SITE"),
@@ -64,9 +76,9 @@ def on_message(client, userdata, msg):
                 decoded_payload.get("snr", 0),
                 str(decoded_payload),
                 decoded_payload.get("temperature"),
-                None,
-                None,
-                None
+                asset_id,
+                asset_name,
+                asset_type
             )
 
             print("Inserted MQTT data into PostgreSQL")
@@ -74,7 +86,18 @@ def on_message(client, userdata, msg):
         except Exception as pg_error:
             print("PostgreSQL insert error:", pg_error)
             
-            
+        asset = get_asset_by_device(
+            decoded_payload.get("device_eui")
+        )
+
+        asset_id = None
+        asset_name = None
+        asset_type = None
+
+        if asset:
+            asset_id = asset[0]
+            asset_name = asset[2]
+            asset_type = asset[3] 
 
 
         client.publish(
