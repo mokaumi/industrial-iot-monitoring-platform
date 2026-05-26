@@ -304,8 +304,7 @@ def anomaly_score_trend():
 
 @app.route("/alarm_history")
 def alarm_history():
-
-    conn = sqlite3.connect("iot.db", timeout=10)
+    conn = get_pg_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -320,6 +319,8 @@ def alarm_history():
     """)
 
     rows = cursor.fetchall()
+
+    cursor.close()
     conn.close()
 
     alarms = []
@@ -329,11 +330,10 @@ def alarm_history():
             "device_eui": r[0],
             "alarm_message": r[1],
             "acknowledged_by": r[2],
-            "acknowledged_at": r[3]
+            "acknowledged_at": str(r[3])
         })
 
     return jsonify(alarms)
-
 
 
 
@@ -345,7 +345,7 @@ def acknowledge_alarm():
     alarm_message = data.get("alarm_message", "UNKNOWN")
     acknowledged_by = session.get("user", "UNKNOWN")
 
-    conn = sqlite3.connect("iot.db", timeout=10)
+    conn = get_pg_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -354,24 +354,27 @@ def acknowledge_alarm():
         alarm_message,
         acknowledged_by
     )
-    VALUES (?, ?, ?)
+    VALUES (%s, %s, %s)
     """, (device_eui, alarm_message, acknowledged_by))
-
 
     cursor.execute("""
     UPDATE anomaly_events
     SET incident_status = 'ACKNOWLEDGED'
-    WHERE device_eui = ?
-    AND incident_status = 'OPEN'
-    ORDER BY timestamp DESC
-    LIMIT 1
+    WHERE id = (
+        SELECT id
+        FROM anomaly_events
+        WHERE device_eui = %s
+        AND incident_status = 'OPEN'
+        ORDER BY timestamp DESC
+        LIMIT 1
+    )
     """, (device_eui,))
 
     conn.commit()
+    cursor.close()
     conn.close()
 
     return jsonify({"status": "acknowledged"})
-
 
 
 @app.route("/recent_incidents")
