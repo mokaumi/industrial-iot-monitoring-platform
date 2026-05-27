@@ -158,3 +158,22 @@ def recent_anomaly_exists_pg(device_eui, anomaly_level, minutes=5):
     conn.close()
 
     return count > 0
+
+
+
+def resolve_open_incidents_pg(device_eui):
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE anomaly_events
+    SET incident_status = 'RESOLVED',
+        resolved_at = NOW()
+    WHERE device_eui = %s
+    AND incident_status IN ('OPEN', 'ACKNOWLEDGED')
+    AND anomaly_reason ILIKE 'Device offline%%'
+    """, (device_eui,))
+
+    conn.commit()
+    cursor.close()
+    conn.close()

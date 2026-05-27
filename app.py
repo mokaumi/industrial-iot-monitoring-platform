@@ -24,6 +24,7 @@ from postgres_db import get_pg_connection
 from postgres_db import get_data_by_asset_pg   
 from postgres_db import insert_anomaly_event_pg 
 from postgres_db import recent_anomaly_exists_pg
+from postgres_db import resolve_open_incidents_pg
 
 
 
@@ -155,6 +156,8 @@ def device_heartbeat_status():
             diff_seconds = int((now - last_time).total_seconds())
 
             status = "ONLINE" if diff_seconds <= 60 else "OFFLINE"
+            if status == "ONLINE":
+                resolve_open_incidents_pg(device_eui)
 
         except Exception:
             diff_seconds = None
