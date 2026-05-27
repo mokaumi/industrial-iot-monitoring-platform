@@ -23,6 +23,7 @@ from anomaly import analyze_temperature, analyze_smoke, analyze_ac_meter, predic
 from postgres_db import get_pg_connection
 from postgres_db import get_data_by_asset_pg   
 from postgres_db import insert_anomaly_event_pg 
+from postgres_db import recent_anomaly_exists_pg
 
 
 
@@ -98,16 +99,15 @@ def create_offline_incidents(timeout_seconds=60):
                         "HIGH",
                         f"Device offline. No telemetry for {diff} seconds"
                     )
-
-                    insert_anomaly_event_pg(
-                        "HEARTBEAT",
-                        device_eui,
-                        "device_heartbeat",
-                        100,
-                        "HIGH",
-                        f"Device offline. No telemetry for {diff} seconds"
-                    )
-                
+                    if not recent_anomaly_exists_pg(device_eui, "HIGH", minutes=10):
+                        insert_anomaly_event_pg(
+                            "HEARTBEAT",
+                            device_eui,
+                            "device_heartbeat",
+                            100,
+                            "HIGH",
+                            f"Device offline. No telemetry for {diff} seconds"
+                        )
                 
         except Exception as e:
             print("Offline incident error:", e)
@@ -595,8 +595,9 @@ def asset_temperature_data():
         if row:
             device_eui = row[0]
             reason = ", ".join(anomaly["anomaly_reasons"])
-
-            insert_anomaly_event_pg(
+            
+            if not recent_anomaly_exists_pg(device_eui, anomaly["anomaly_level"], minutes=5):
+                insert_anomaly_event_pg(
                 "ASSET_MODE",
                 device_eui,
                 "asset_temperature_sensor",
@@ -1377,17 +1378,25 @@ def temperature_data():
                 anomaly["anomaly_level"],
                 ", ".join(anomaly["anomaly_reasons"])
             )
-            
-            
-            insert_anomaly_event_pg(
-                "HEARTBEAT",
-                device_eui,
-                "device_heartbeat",
-                100,
-                "HIGH",
-                f"Device offline. No telemetry for {diff} seconds"
-            )
-
+            reason = ", ".join(anomaly["anomaly_reasons"])
+            if not recent_anomaly_exists_pg(device_eui, anomaly["anomaly_level"], minutes=5):
+                 insert_anomaly_event_pg(
+                    "HEARTBEAT",
+                    device_eui,
+                    "device_heartbeat",
+                    100,
+                    "HIGH",
+                    f"Device offline. No telemetry for {diff} seconds"
+                )
+            if not recent_anomaly_exists_pg(device_eui, anomaly["anomaly_level"], minutes=5):
+                insert_anomaly_event_pg(
+                    "ASSET_MODE",
+                    device_eui,
+                    "asset_temperature_sensor",
+                    anomaly["anomaly_score"],
+                    anomaly["anomaly_level"],
+                    reason
+                )
 
     return jsonify(data)
 

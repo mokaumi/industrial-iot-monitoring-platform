@@ -134,3 +134,27 @@ def insert_anomaly_event_pg(
     conn.commit()
     cursor.close()
     conn.close()
+    
+    
+def recent_anomaly_exists_pg(device_eui, anomaly_level, minutes=5):
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT COUNT(*)
+    FROM anomaly_events
+    WHERE device_eui = %s
+    AND anomaly_level = %s
+    AND timestamp >= NOW() - (%s || ' minutes')::interval
+    """, (
+        device_eui,
+        anomaly_level,
+        minutes
+    ))
+
+    count = cursor.fetchone()[0]
+
+    cursor.close()
+    conn.close()
+
+    return count > 0
