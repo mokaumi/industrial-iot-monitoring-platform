@@ -75,6 +75,6 @@ async def telemetry_ws(websocket: WebSocket):
 
 mqtt_client = mqtt.Client()
 mqtt_client.on_message = on_mqtt_message
-mqtt_client.connect("localhost", 1883, 60)
+mqtt_client.connect("mosquitto", 1883, 60)
 mqtt_client.subscribe("iot/normalized")
 mqtt_client.loop_start()

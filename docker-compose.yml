@@ -20,7 +20,7 @@ services:
   flask_app:
     build: .
     container_name: iot_flask_app
-    command: python3 app.py
+    command: python3 -u app.py
     ports:
       - "5000:5000"
     depends_on:
@@ -30,7 +30,7 @@ services:
   mqtt_subscriber:
     build: .
     container_name: iot_mqtt_subscriber
-    command: python3 mqtt_subscriber.py
+    command: python3 -u mqtt_subscriber.py
     depends_on:
       - postgres
       - mosquitto
@@ -38,10 +38,28 @@ services:
   mqtt_device_simulator:
     build: .
     container_name: iot_mqtt_device_simulator
-    command: python3 mqtt_device_simulator.py
+    command: python3 -u mqtt_device_simulator.py
     depends_on:
       - mosquitto
 
+
+
+  fastapi_server:
+    build: .
+    container_name: iot_fastapi_server
+    command: uvicorn fastapi_server:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mosquitto
+
+  heartbeat_worker:
+    build: .
+    container_name: iot_heartbeat_worker
+    command: python3 -u heartbeat_worker.py
+    depends_on:
+      - postgres
+      - mosquitto
 
 volumes:
   postgres_data:
