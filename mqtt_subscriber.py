@@ -3,12 +3,12 @@ import json
 import time
 import paho.mqtt.client as mqtt
 
-from database import insert_data
+# from database import insert_data
 
 from postgres_db import insert_sensor_data_pg
-from database import get_asset_by_device
+# from database import get_asset_by_device
 
-BROKER = "localhost"
+BROKER = "mosquitto"
 PORT = 1883
 TOPIC = "iot/telemetry"
 NORMALIZED_TOPIC = "iot/normalized"
@@ -40,30 +40,25 @@ def on_message(client, userdata, msg):
         decoded_payload.setdefault("movement", "MQTT")
         decoded_payload.setdefault("battery", 3.8)
 
-        insert_data(
-            decoded_payload.get("site", "UNKNOWN_SITE"),
-            decoded_payload.get("device_name", "MQTT Device"),
-            decoded_payload.get("device_type", "temperature_sensor"),
-            decoded_payload.get("device_eui", "UNKNOWN_EUI"),
-            decoded_payload.get("freq", "MQTT"),
-            decoded_payload.get("rssi", 0),
-            decoded_payload.get("snr", 0),
-            str(decoded_payload),
-            decoded_payload.get("temperature")
-        )
+        # insert_data(
+        #     decoded_payload.get("site", "UNKNOWN_SITE"),
+        #     decoded_payload.get("device_name", "MQTT Device"),
+        #     decoded_payload.get("device_type", "temperature_sensor"),
+        #     decoded_payload.get("device_eui", "UNKNOWN_EUI"),
+        #     decoded_payload.get("freq", "MQTT"),
+        #     decoded_payload.get("rssi", 0),
+        #     decoded_payload.get("snr", 0),
+        #     str(decoded_payload),
+        #     decoded_payload.get("temperature")
+        # )
         
         
         
-        asset = get_asset_by_device(decoded_payload.get("device_eui"))
+        
 
-        asset_id = None
-        asset_name = None
-        asset_type = None
-
-        if asset:
-            asset_id = asset[0]
-            asset_name = asset[2]
-            asset_type = asset[3]
+        asset_id = 1 if decoded_payload.get("device_eui") == "MQTT_GEN_001" else None
+        asset_name = "Generator" if decoded_payload.get("device_eui") == "MQTT_GEN_001" else None
+        asset_type = "AC METER" if decoded_payload.get("device_eui") == "MQTT_GEN_001" else None
 
         try:
             insert_sensor_data_pg(
@@ -85,10 +80,9 @@ def on_message(client, userdata, msg):
 
         except Exception as pg_error:
             print("PostgreSQL insert error:", pg_error)
+    
             
-        asset = get_asset_by_device(
-            decoded_payload.get("device_eui")
-        )
+        
 
         asset_id = None
         asset_name = None

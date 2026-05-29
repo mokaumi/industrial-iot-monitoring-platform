@@ -1,13 +1,6 @@
-import psycopg2
+from postgres_db import get_pg_connection
 
-conn = psycopg2.connect(
-    host="localhost",
-    database="iot_platform",
-    user="iot_user",
-    password="iot_password",
-    port=5432
-)
-
+conn = get_pg_connection()
 cursor = conn.cursor()
 
 cursor.execute("""

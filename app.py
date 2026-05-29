@@ -579,44 +579,84 @@ def asset_temperature_data():
         conn.commit()
         conn.close()
 
+    # if anomaly["anomaly_level"] in ["LOW", "MEDIUM", "HIGH"]:
+
+    #     conn = sqlite3.connect("iot.db", timeout=10)
+    #     cursor = conn.cursor()
+
+    #     cursor.execute("""
+    #     SELECT device_eui
+    #     FROM asset_devices
+    #     WHERE asset_id = ?
+    #     AND is_active = 1
+    #     LIMIT 1
+    #     """, (asset_id,))
+
+    #     row = cursor.fetchone()
+    #     conn.close()
+
+    #     if row:
+    #         device_eui = row[0]
+    #         reason = ", ".join(anomaly["anomaly_reasons"])
+            
+    #         if not recent_anomaly_exists_pg(device_eui, anomaly["anomaly_level"], minutes=5):
+    #             insert_anomaly_event_pg(
+    #             "ASSET_MODE",
+    #             device_eui,
+    #             "asset_temperature_sensor",
+    #             anomaly["anomaly_score"],
+    #             anomaly["anomaly_level"],
+    #             reason
+    #         )
+
+    #         already_exists = recent_anomaly_exists(
+    #             device_eui,
+    #             anomaly["anomaly_level"],
+    #             minutes=5
+    #         )
+
+    #         if not already_exists:
+    #             insert_anomaly_event(
+    #                 "ASSET_MODE",
+    #                 device_eui,
+    #                 "asset_temperature_sensor",
+    #                 anomaly["anomaly_score"],
+    #                 anomaly["anomaly_level"],
+    #                 reason
+    #             )
+
+    # return jsonify(data)
+    
+    
     if anomaly["anomaly_level"] in ["LOW", "MEDIUM", "HIGH"]:
 
-        conn = sqlite3.connect("iot.db", timeout=10)
+        conn = get_pg_connection()
         cursor = conn.cursor()
 
         cursor.execute("""
         SELECT device_eui
         FROM asset_devices
-        WHERE asset_id = ?
+        WHERE asset_id = %s
         AND is_active = 1
         LIMIT 1
         """, (asset_id,))
 
         row = cursor.fetchone()
+
+        cursor.close()
         conn.close()
 
         if row:
             device_eui = row[0]
-            reason = ", ".join(anomaly["anomaly_reasons"])
-            
-            if not recent_anomaly_exists_pg(device_eui, anomaly["anomaly_level"], minutes=5):
-                insert_anomaly_event_pg(
-                "ASSET_MODE",
-                device_eui,
-                "asset_temperature_sensor",
-                anomaly["anomaly_score"],
-                anomaly["anomaly_level"],
-                reason
-            )
 
-            already_exists = recent_anomaly_exists(
+            reason = ", ".join(anomaly["anomaly_reasons"])
+
+            if not recent_anomaly_exists_pg(
                 device_eui,
                 anomaly["anomaly_level"],
                 minutes=5
-            )
-
-            if not already_exists:
-                insert_anomaly_event(
+            ):
+                insert_anomaly_event_pg(
                     "ASSET_MODE",
                     device_eui,
                     "asset_temperature_sensor",
@@ -639,7 +679,23 @@ def assets_by_site():
     if not site:
         return jsonify([])
 
-    rows = get_assets_by_site(site)
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT DISTINCT
+        asset_id,
+        asset_name,
+        asset_type
+    FROM sensor_data
+    WHERE site = %s
+    AND asset_id IS NOT NULL
+    ORDER BY asset_name
+    """, (site,))
+
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
 
     assets = []
 
@@ -651,8 +707,6 @@ def assets_by_site():
         })
 
     return jsonify(assets)
-
-
 
 # ---------------- ROUTES ----------------
 @app.route("/device_health")
@@ -1284,7 +1338,22 @@ def alert_history():
 
 @app.route("/devices")
 def devices():
-    rows = get_devices()
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT DISTINCT
+        site,
+        device_name,
+        device_type,
+        device_eui
+    FROM sensor_data
+    ORDER BY site, device_name
+    """)
+
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
 
     data = []
     for r in rows:

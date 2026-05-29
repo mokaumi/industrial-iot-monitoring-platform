@@ -1,14 +1,19 @@
+
 import psycopg2
 
 
 def get_pg_connection():
     return psycopg2.connect(
-        host="localhost",
+        host="postgres",
         database="iot_platform",
         user="iot_user",
         password="iot_password",
         port=5432
     )
+
+
+
+
 def insert_sensor_data_pg(
     site,
     device_name,

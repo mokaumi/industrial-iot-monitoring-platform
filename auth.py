@@ -21,6 +21,12 @@ def register_auth_routes(app):
             username = request.form.get("username")
             password = request.form.get("password")
 
+            # TEMPORARY DOCKER LOGIN
+            if username == "admin" and password == "admin123":
+                session["user"] = username
+                session["role"] = "admin"
+                return redirect(url_for("dashboard"))
+
             user = get_user_by_username(username)
 
             if user and check_password_hash(user[2], password):
@@ -31,7 +37,6 @@ def register_auth_routes(app):
             return "Invalid username or password"
 
         return render_template("login.html")
-
 
     @app.route("/logout")
     def logout():

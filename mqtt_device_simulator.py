@@ -4,7 +4,7 @@ import math
 import random
 import paho.mqtt.client as mqtt
 
-BROKER = "localhost"
+BROKER = "mosquitto"
 PORT = 1883
 TOPIC = "iot/telemetry"
 

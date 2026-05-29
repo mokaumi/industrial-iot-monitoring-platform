@@ -61,7 +61,7 @@ def mqtt_listener():
     client = mqtt.Client()
     client.on_message = on_mqtt_message
 
-    client.connect("localhost", 1883, 60)
+    client.connect("mosquitto", 1883, 60)
     client.subscribe("sensors/telemetry")
 
     client.loop_forever()
