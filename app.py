@@ -58,6 +58,596 @@ threading.Thread(target=mqtt_listener, daemon=True).start()
 
 
 
+@app.route("/sites_registry/<int:site_id>", methods=["PUT"])
+def update_site_registry(site_id):
+    data = request.get_json()
+
+    site_name = data.get("site_name")
+
+    if not site_name:
+        return jsonify({"error": "site_name is required"}), 400
+
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE sites
+    SET name = %s
+    WHERE id = %s
+    RETURNING id
+    """, (site_name, site_id))
+
+    updated = cursor.fetchone()
+
+    if not updated:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({"error": "Site not found"}), 404
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "message": "Site updated successfully",
+        "site_id": site_id
+    })
+
+
+
+
+
+
+
+@app.route("/sites_registry/<int:site_id>", methods=["DELETE"])
+def delete_site_registry(site_id):
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    DELETE FROM sites
+    WHERE id = %s
+    RETURNING id
+    """, (site_id,))
+
+    deleted = cursor.fetchone()
+
+    if not deleted:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({"error": "Site not found"}), 404
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "message": "Site deleted successfully",
+        "site_id": site_id
+    })
+
+
+
+@app.route("/sites_registry", methods=["POST"])
+def add_site_registry():
+    data = request.get_json()
+
+    site_name = data.get("site_name")
+
+    if not site_name:
+        return jsonify({"error": "site_name is required"}), 400
+
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+        INSERT INTO sites (name)
+        VALUES (%s)
+        RETURNING id
+        """, (site_name,))
+
+        new_id = cursor.fetchone()[0]
+        conn.commit()
+
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({"error": str(e)}), 400
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "message": "Site added successfully",
+        "site_id": new_id
+    }), 201
+
+
+
+
+@app.route("/site_registry_page")
+def site_registry_page():
+
+    check = require_role("admin")
+    if check:
+        return check
+
+    return render_template("site_registry.html")
+
+
+
+
+@app.route("/asset_registry_page")
+def asset_registry_page():
+    check = require_role("admin")
+    if check:
+        return check
+
+    return render_template("asset_registry.html")
+
+
+
+
+@app.route("/assets_registry/<int:asset_id>", methods=["DELETE"])
+def deactivate_asset_registry(asset_id):
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE assets
+    SET is_active = 0
+    WHERE id = %s
+    RETURNING id
+    """, (asset_id,))
+
+    deleted = cursor.fetchone()
+
+    if not deleted:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({"error": "Asset not found"}), 404
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "message": "Asset deactivated successfully",
+        "asset_id": asset_id
+    })
+
+
+
+
+
+@app.route("/assets_registry/<int:asset_id>", methods=["PUT"])
+def update_asset_registry(asset_id):
+    data = request.get_json()
+
+    site_id = data.get("site_id")
+    asset_name = data.get("asset_name")
+    asset_type = data.get("asset_type")
+
+    if not site_id or not asset_name or not asset_type:
+        return jsonify({
+            "error": "site_id, asset_name, and asset_type are required"
+        }), 400
+
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+        UPDATE assets
+        SET
+            site_id = %s,
+            asset_name = %s,
+            asset_type = %s
+        WHERE id = %s
+        RETURNING id
+        """, (
+            site_id,
+            asset_name,
+            asset_type,
+            asset_id
+        ))
+
+        updated = cursor.fetchone()
+
+        if not updated:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Asset not found"}), 404
+
+        conn.commit()
+
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({"error": str(e)}), 400
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "message": "Asset updated successfully",
+        "asset_id": asset_id
+    })
+
+
+
+
+
+
+@app.route("/assets_registry", methods=["POST"])
+def add_asset_registry():
+    data = request.get_json()
+
+    site_id = data.get("site_id")
+    asset_name = data.get("asset_name")
+    asset_type = data.get("asset_type")
+
+    if not site_id or not asset_name or not asset_type:
+        return jsonify({
+            "error": "site_id, asset_name, and asset_type are required"
+        }), 400
+
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+        INSERT INTO assets (
+            site_id,
+            asset_name,
+            asset_type
+        )
+        VALUES (%s, %s, %s)
+        RETURNING id
+        """, (
+            site_id,
+            asset_name,
+            asset_type
+        ))
+
+        new_id = cursor.fetchone()[0]
+        conn.commit()
+
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({"error": str(e)}), 400
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "message": "Asset added successfully",
+        "asset_id": new_id
+    }), 201
+
+
+
+
+
+@app.route("/assets_registry_full")
+def assets_registry_full():
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT
+        a.id,
+        s.name AS site,
+        a.asset_name,
+        a.asset_type,
+        a.is_active
+    FROM assets a
+    LEFT JOIN sites s ON a.site_id = s.id
+    ORDER BY a.id DESC
+    """)
+
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    assets = []
+
+    for r in rows:
+        assets.append({
+            "asset_id": r[0],
+            "site": r[1],
+            "asset_name": r[2],
+            "asset_type": r[3],
+            "is_active": r[4]
+        })
+        
+
+    return jsonify(assets)
+
+
+
+
+@app.route("/device_registry_page")
+def device_registry_page():
+    check = require_role("admin")
+    if check:
+        return check
+
+    return render_template("device_registry.html")
+
+
+
+
+
+
+@app.route("/sites_registry")
+def sites_registry():
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT id, name
+    FROM sites
+    ORDER BY name
+    """)
+
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    sites = []
+
+    for r in rows:
+        sites.append({
+            "site_id": r[0],
+            "site_name": r[1]
+        })
+
+    return jsonify(sites)
+
+
+
+
+@app.route("/assets_registry")
+def assets_registry():
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        a.id,
+        s.name AS site,
+        a.asset_name,
+        a.asset_type
+    FROM assets a
+    JOIN sites s ON a.site_id = s.id
+    ORDER BY s.name, a.asset_name
+    """)
+
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    assets = []
+
+    for r in rows:
+        assets.append({
+            "asset_id": r[0],
+            "site": r[1],
+            "asset_name": r[2],
+            "asset_type": r[3]
+        })
+
+    return jsonify(assets)
+
+
+
+
+
+
+@app.route("/devices_registry", methods=["POST"])
+def add_device_registry():
+    data = request.get_json()
+
+    device_eui = data.get("device_eui")
+    device_name = data.get("device_name")
+    device_type = data.get("device_type")
+    site = data.get("site")
+    asset_id = data.get("asset_id")
+    is_active = data.get("is_active", 1)
+
+    if not device_eui or not device_name or not device_type:
+        return jsonify({
+            "error": "device_eui, device_name, and device_type are required"
+        }), 400
+
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+        INSERT INTO devices (
+            device_eui,
+            device_name,
+            device_type,
+            site,
+            asset_id,
+            is_active
+        )
+        VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """, (
+            device_eui,
+            device_name,
+            device_type,
+            site,
+            asset_id,
+            is_active
+        ))
+
+        new_id = cursor.fetchone()[0]
+        conn.commit()
+
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "error": str(e)
+        }), 400
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "message": "Device added successfully",
+        "device_id": new_id
+    }), 201
+
+
+
+
+@app.route("/devices_registry/<int:device_id>", methods=["PUT"])
+def update_device_registry(device_id):
+    data = request.get_json()
+
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+        UPDATE devices
+        SET
+            device_eui = %s,
+            device_name = %s,
+            device_type = %s,
+            site = %s,
+            asset_id = %s,
+            is_active = %s
+        WHERE id = %s
+        RETURNING id
+        """, (
+            data.get("device_eui"),
+            data.get("device_name"),
+            data.get("device_type"),
+            data.get("site"),
+            data.get("asset_id"),
+            data.get("is_active", 1),
+            device_id
+        ))
+
+        updated = cursor.fetchone()
+
+        if not updated:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Device not found"}), 404
+
+        conn.commit()
+
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({"error": str(e)}), 400
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "message": "Device updated successfully",
+        "device_id": device_id
+    })
+
+
+@app.route("/devices_registry/<int:device_id>", methods=["DELETE"])
+def deactivate_device_registry(device_id):
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE devices
+    SET is_active = 0
+    WHERE id = %s
+    RETURNING id
+    """, (device_id,))
+
+    deleted = cursor.fetchone()
+
+    if not deleted:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({"error": "Device not found"}), 404
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "message": "Device deactivated successfully",
+        "device_id": device_id
+    })
+
+
+
+@app.route("/devices_registry")
+def devices_registry():
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        id,
+        device_eui,
+        device_name,
+        device_type,
+        site,
+        asset_id,
+        is_active,
+        created_at
+    FROM devices
+    ORDER BY id DESC
+    """)
+
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    devices = []
+
+    for r in rows:
+        devices.append({
+            "id": r[0],
+            "device_eui": r[1],
+            "device_name": r[2],
+            "device_type": r[3],
+            "site": r[4],
+            "asset_id": r[5],
+            "is_active": r[6],
+            "created_at": str(r[7])
+        })
+
+    return jsonify(devices)
+
+
+
+
+
 
 def create_offline_incidents(timeout_seconds=60):
     conn = sqlite3.connect("iot.db", timeout=10)
@@ -671,7 +1261,6 @@ def asset_temperature_data():
 
 
 
-
 @app.route("/assets_by_site")
 def assets_by_site():
     site = request.args.get("site")
@@ -683,17 +1272,18 @@ def assets_by_site():
     cursor = conn.cursor()
 
     cursor.execute("""
-    SELECT DISTINCT
-        asset_id,
-        asset_name,
-        asset_type
-    FROM sensor_data
-    WHERE site = %s
-    AND asset_id IS NOT NULL
-    ORDER BY asset_name
+    SELECT
+        a.id,
+        a.asset_name,
+        a.asset_type
+    FROM assets a
+    JOIN sites s ON a.site_id = s.id
+    WHERE LOWER(s.name) = LOWER(%s)
+    ORDER BY a.asset_name
     """, (site,))
 
     rows = cursor.fetchall()
+
     cursor.close()
     conn.close()
 
@@ -1342,20 +1932,23 @@ def devices():
     cursor = conn.cursor()
 
     cursor.execute("""
-    SELECT DISTINCT
+    SELECT
         site,
         device_name,
         device_type,
         device_eui
-    FROM sensor_data
+    FROM devices
+    WHERE is_active = 1
     ORDER BY site, device_name
     """)
 
     rows = cursor.fetchall()
+
     cursor.close()
     conn.close()
 
     data = []
+
     for r in rows:
         data.append({
             "site": r[0],

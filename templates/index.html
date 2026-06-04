@@ -902,16 +902,19 @@ body::after {
 
     <div class="top-header">
         <h1 id="dashboardTitle" class="dashboard-title">⚡ Energy Dashboard</h1>
-    
         <div class="header-actions">
             <div class="user-badge">
                 👤 {{ session['user'] }} | {{ role|upper }}
             </div>
-    
+        
             {% if role == "admin" %}
             <a href="/admin/users" class="admin-btn">Users</a>
+        
+            <a href="/device_registry_page" class="admin-btn">
+                Device Registry
+            </a>
             {% endif %}
-    
+        
             <a href="/logout" class="logout-btn">Logout</a>
         </div>
     </div>

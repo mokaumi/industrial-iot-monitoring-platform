@@ -56,6 +56,24 @@ CREATE TABLE IF NOT EXISTS asset_devices (
     assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """)
+
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS devices (
+    id SERIAL PRIMARY KEY,
+    device_eui TEXT UNIQUE NOT NULL,
+    device_name TEXT NOT NULL,
+    device_type TEXT NOT NULL,
+    site TEXT,
+    asset_id INTEGER,
+    is_active INTEGER DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+""")
+
+
+
+
 conn.commit()
 cursor.close()
 conn.close()

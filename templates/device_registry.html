@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Device Registry</title>
+    <style>
+        body {
+            font-family: Arial;
+            padding: 20px;
+            background: #f4f6f8;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background: #111827;
+            color: white;
+        }
+
+        input,
+        select {
+            padding: 8px;
+            margin: 5px;
+        }
+
+        button,
+        a {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 5px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .save-btn {
+            background: #2563eb;
+            color: white;
+        }
+
+        .back-btn {
+            background: #374151;
+            color: white;
+        }
+
+        .edit-btn {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .delete-btn {
+            background: #dc2626;
+            color: white;
+        }
+
+        .active {
+            color: green;
+            font-weight: bold;
+        }
+
+        .inactive {
+            color: red;
+            font-weight: bold;
+        }
+
+        .form-box {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="top-bar">
+        <h2>Device Registry</h2>
+        <a href="/" class="back-btn">Back to Dashboard</a>
+    </div>
+
+    <div class="form-box">
+        <input type="hidden" id="deviceId">
+
+        <input id="deviceEui" placeholder="Device EUI">
+        <input id="deviceName" placeholder="Device Name">
+
+        <select id="deviceType">
+            <option value="temperature_sensor">Temperature Sensor</option>
+            <option value="smoke_sensor">Smoke Sensor</option>
+            <option value="fuel_sensor">Fuel Sensor</option>
+            <option value="ac_meter">AC Meter</option>
+        </select>
+
+        <select id="siteSelect" onchange="loadAssetsForSite()"></select>
+        <select id="assetSelect"></select>
+
+        <label>
+            <input type="checkbox" id="isActive" checked>
+            Active
+        </label>
+
+        <button class="save-btn" onclick="saveDevice()">Save Device</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Device EUI</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Site</th>
+                <th>Asset ID</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="deviceTableBody"></tbody>
+    </table>
+
+    <script>
+        let allAssets = [];
+
+        async function loadSites() {
+            const res = await fetch("/sites_registry");
+            const sites = await res.json();
+
+            const select = document.getElementById("siteSelect");
+            select.innerHTML = "";
+
+            sites.forEach(s => {
+                select.innerHTML += `<option value="${s.site_name}">${s.site_name}</option>`;
+            });
+
+            await loadAssetsForSite();
+        }
+
+        async function loadAssets() {
+            const res = await fetch("/assets_registry");
+            allAssets = await res.json();
+        }
+
+        async function loadAssetsForSite(selectedAssetId = null) {
+            const site = document.getElementById("siteSelect").value;
+            const assetSelect = document.getElementById("assetSelect");
+
+            assetSelect.innerHTML = `<option value="">No Asset</option>`;
+
+            allAssets
+                .filter(a => a.site.toLowerCase() === site.toLowerCase())
+                .forEach(a => {
+                    const selected = selectedAssetId == a.asset_id ? "selected" : "";
+                    assetSelect.innerHTML += `
+                <option value="${a.asset_id}" ${selected}>
+                    ${a.asset_name} (${a.asset_type})
+                </option>
+            `;
+                });
+        }
+
+        async function loadDevices() {
+            const res = await fetch("/devices_registry");
+            const devices = await res.json();
+
+            const tbody = document.getElementById("deviceTableBody");
+            tbody.innerHTML = "";
+
+            devices.forEach(d => {
+                tbody.innerHTML += `
+            <tr>
+                <td>${d.id}</td>
+                <td>${d.device_eui}</td>
+                <td>${d.device_name}</td>
+                <td>${d.device_type}</td>
+                <td>${d.site}</td>
+                <td>${d.asset_id ?? "-"}</td>
+                <td class="${d.is_active ? 'active' : 'inactive'}">
+                    ${d.is_active ? "Active" : "Inactive"}
+                </td>
+                <td>
+                    <button class="edit-btn" onclick='editDevice(${JSON.stringify(d)})'>Edit</button>
+                    <button class="delete-btn" onclick="deactivateDevice(${d.id})">Deactivate</button>
+                </td>
+            </tr>
+        `;
+            });
+        }
+
+        async function saveDevice() {
+            const id = document.getElementById("deviceId").value;
+
+            const payload = {
+                device_eui: document.getElementById("deviceEui").value,
+                device_name: document.getElementById("deviceName").value,
+                device_type: document.getElementById("deviceType").value,
+                site: document.getElementById("siteSelect").value,
+                asset_id: document.getElementById("assetSelect").value || null,
+                is_active: document.getElementById("isActive").checked ? 1 : 0
+            };
+
+            const url = id ? `/devices_registry/${id}` : "/devices_registry";
+            const method = id ? "PUT" : "POST";
+
+            await fetch(url, {
+                method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            clearForm();
+            loadDevices();
+        }
+
+        async function editDevice(d) {
+            document.getElementById("deviceId").value = d.id;
+            document.getElementById("deviceEui").value = d.device_eui;
+            document.getElementById("deviceName").value = d.device_name;
+            document.getElementById("deviceType").value = d.device_type;
+            document.getElementById("siteSelect").value = d.site;
+            document.getElementById("isActive").checked = d.is_active === 1;
+
+            await loadAssetsForSite(d.asset_id);
+        }
+
+        async function deactivateDevice(id) {
+            if (!confirm("Deactivate this device?")) return;
+
+            await fetch(`/devices_registry/${id}`, { method: "DELETE" });
+            loadDevices();
+        }
+
+        function clearForm() {
+            document.getElementById("deviceId").value = "";
+            document.getElementById("deviceEui").value = "";
+            document.getElementById("deviceName").value = "";
+            document.getElementById("isActive").checked = true;
+        }
+
+        async function init() {
+            await loadAssets();
+            await loadSites();
+            await loadDevices();
+        }
+
+        init();
+    </script>
+
+</body>
+
+</html>
