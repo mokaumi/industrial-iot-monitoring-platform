@@ -139,7 +139,8 @@ def assets_by_site_name(site_name):
 def update_site_registry(site_id):
     data = request.get_json()
 
-    site_name = data.get("site_name")
+    
+    site_name = data.get("site_name", "").strip()
 
     if not site_name:
         return jsonify({"error": "site_name is required"}), 400
@@ -211,7 +212,8 @@ def delete_site_registry(site_id):
 def add_site_registry():
     data = request.get_json()
 
-    site_name = data.get("site_name")
+
+    site_name = data.get("site_name", "").strip()
 
     if not site_name:
         return jsonify({"error": "site_name is required"}), 400
