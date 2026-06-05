@@ -892,6 +892,10 @@ body::after {
 
 </head>
 
+<a href="/site_registry_page" class="admin-btn">
+    Site Registry
+</a>
+
 
 
 <body style="font-family: Arial; background:#0f172a; color:white;">
@@ -1503,6 +1507,7 @@ body::after {
     let lastLiveIncidentTime = 0;
     let liveIncidentCooldown = 60000; // 1 minute
     let currentAlertDeviceEui = null;
+    let currentAssetDevices = [];
 
 
 
@@ -2061,43 +2066,64 @@ body::after {
 
     function updateDashboardTitle() {
 
-            let site = selectedSite || "Unknown Site";
+        let site = selectedSite || "Unknown Site";
 
-            let assetName = "No Asset";
+        let assetName = "No Asset";
 
-            let selectedAsset = allAssets.find(
-                a => a.asset_id == selectedAssetId
-            );
+        let selectedAsset = allAssets.find(
+            a => a.asset_id == selectedAssetId
+        );
 
-            if (selectedAsset) {
-                assetName = `${selectedAsset.asset_name} - ${selectedAsset.asset_type}`;
-            }
-
-            document.getElementById("dashboardTitle").innerText =
-                `⚡ ${site} | ${assetName.replace("AC METER", "ACM")}`
+        if (selectedAsset) {
+            assetName = `${selectedAsset.asset_name} - ${selectedAsset.asset_type}`;
         }
 
+        document.getElementById("dashboardTitle").innerText =
+            `⚡ ${site} | ${assetName.replace("AC METER", "ACM")}`
+    }
 
-
-
-
+    
     async function onAssetChange() {
             selectedAssetId = document.getElementById("assetSelect").value;
 
-            switchDashboardByDeviceType("temperature_sensor");
+            const deviceSelect = document.getElementById("deviceSelect");
+            deviceSelect.innerHTML = "";
 
-            await loadAssetTemperatureData();
+            if (!selectedAssetId) {
+                deviceSelect.innerHTML = `<option value="">No Device</option>`;
+                currentAssetDevices = [];
+                return;
+            }
+
+            const res = await fetch(`/devices_by_asset/${selectedAssetId}`);
+            const devices = await res.json();
+
+            currentAssetDevices = devices;
+
+            if (devices.length === 0) {
+                deviceSelect.innerHTML = `<option value="">No devices for this asset</option>`;
+                return;
+            }
+
+            devices.forEach(d => {
+                deviceSelect.innerHTML += `
+            <option value="${d.device_eui}">
+                ${d.device_name} (${d.device_eui})
+            </option>
+        `;
+            });
+
+            selectedDeviceEui = deviceSelect.value;
+
+            onDeviceChange();
         }
-
-
-
 
     
 
 
 
     async function loadAssetsForSite(site) {
-            let r = await fetch(`/assets_by_site?site=${site}`);
+            let r = await fetch(`/assets_by_site/${encodeURIComponent(site)}`);
             allAssets = await r.json();
 
             let assetSelect = document.getElementById("assetSelect");
@@ -2111,13 +2137,12 @@ body::after {
             });
 
             if (allAssets.length > 0) {
-
                 selectedAssetId = allAssets[0].asset_id;
-
-                await loadAssetTemperatureData();
+                assetSelect.value = selectedAssetId;
+            } else {
+                selectedAssetId = "";
             }
         }
-
 
 
 
@@ -2390,7 +2415,9 @@ body::after {
             if (sites.length > 0) {
                 selectedSite = sites[0];
                 siteSelect.value = selectedSite;
-                populateDeviceSelect();
+
+                await loadAssetsForSite(selectedSite);
+                await onAssetChange();
             }
         }
 
@@ -2430,23 +2457,23 @@ body::after {
     
 
 
-    async function onSiteChange() {
-            selectedSite = document.getElementById("siteSelect").value;
+        async function onSiteChange() {
+                selectedSite = document.getElementById("siteSelect").value;
 
-            await loadAssetsForSite(selectedSite);
+                await loadAssetsForSite(selectedSite);
 
-            populateDeviceSelect();
-
-            // Do not call runCurrentDashboard here for asset mode
-        }
-
-
+                await onAssetChange();
+            }
+    
 
 
     function onDeviceChange() {
             selectedDeviceEui = document.getElementById("deviceSelect").value;
 
-            let selectedDevice = allDevices.find(d => d.device_eui === selectedDeviceEui);
+            
+            let selectedDevice = currentAssetDevices.find(
+                d => d.device_eui === selectedDeviceEui
+            );
 
             if (selectedDevice) {
                 switchDashboardByDeviceType(selectedDevice.device_type);
@@ -4108,7 +4135,10 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
     }
 
     function runCurrentDashboard() {
-            let selectedDevice = allDevices.find(d => d.device_eui === selectedDeviceEui);
+        
+            let selectedDevice = currentAssetDevices.find(
+                d => d.device_eui === selectedDeviceEui
+            );
             if (!selectedDevice) return;
 
             loadDeviceHealth();

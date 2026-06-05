@@ -80,20 +80,8 @@ def on_message(client, userdata, msg):
 
         except Exception as pg_error:
             print("PostgreSQL insert error:", pg_error)
-    
-            
+
         
-
-        asset_id = None
-        asset_name = None
-        asset_type = None
-
-        if asset:
-            asset_id = asset[0]
-            asset_name = asset[2]
-            asset_type = asset[3] 
-
-
         client.publish(
                 NORMALIZED_TOPIC,
                 json.dumps(decoded_payload)

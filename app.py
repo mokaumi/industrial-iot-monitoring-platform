@@ -58,6 +58,83 @@ threading.Thread(target=mqtt_listener, daemon=True).start()
 
 
 
+@app.route("/devices_by_asset/<int:asset_id>")
+def devices_by_asset(asset_id):
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        device_eui,
+        device_name,
+        device_type
+    FROM devices
+    WHERE asset_id = %s
+    AND is_active = 1
+    ORDER BY device_name
+    """, (asset_id,))
+
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    devices = []
+
+    for r in rows:
+        devices.append({
+            "device_eui": r[0],
+            "device_name": r[1],
+            "device_type": r[2]
+        })
+
+    return jsonify(devices)
+
+
+
+
+@app.route("/assets_by_site/<site_name>")
+def assets_by_site_name(site_name):
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        a.id,
+        a.asset_name,
+        a.asset_type
+    FROM assets a
+    JOIN sites s ON a.site_id = s.id
+    WHERE LOWER(s.name) = LOWER(%s)
+    AND a.is_active = 1
+    ORDER BY a.asset_name
+    """, (site_name,))
+
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    assets = []
+
+    for row in rows:
+        assets.append({
+            "asset_id": row[0],
+            "asset_name": row[1],
+            "asset_type": row[2]
+        })
+
+    return jsonify(assets)
+
+
+
+
+
+
+
+
+
+
 @app.route("/sites_registry/<int:site_id>", methods=["PUT"])
 def update_site_registry(site_id):
     data = request.get_json()

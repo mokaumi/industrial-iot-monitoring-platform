@@ -108,7 +108,7 @@
         </select>
 
         <select id="siteSelect" onchange="loadAssetsForSite()"></select>
-        <select id="assetSelect"></select>
+        <select id="assetSelect" onchange="loadDevices()"></select>
 
         <label>
             <input type="checkbox" id="isActive" checked>
@@ -135,7 +135,7 @@
     </table>
 
     <script>
-        let allAssets = [];
+    
 
         async function loadSites() {
             const res = await fetch("/sites_registry");
@@ -151,26 +151,35 @@
             await loadAssetsForSite();
         }
 
-        async function loadAssets() {
-            const res = await fetch("/assets_registry");
-            allAssets = await res.json();
-        }
+        
 
         async function loadAssetsForSite(selectedAssetId = null) {
-            const site = document.getElementById("siteSelect").value;
-            const assetSelect = document.getElementById("assetSelect");
 
-            assetSelect.innerHTML = `<option value="">No Asset</option>`;
+                const site = document.getElementById("siteSelect").value;
 
-            allAssets
-                .filter(a => a.site.toLowerCase() === site.toLowerCase())
-                .forEach(a => {
-                    const selected = selectedAssetId == a.asset_id ? "selected" : "";
+                const res = await fetch(
+                    `/assets_by_site/${encodeURIComponent(site)}`
+                );
+
+                const assets = await res.json();
+
+                const assetSelect = document.getElementById("assetSelect");
+
+                assetSelect.innerHTML =
+                    '<option value="">No Asset</option>';
+
+                assets.forEach(a => {
+
+                    const selected =
+                        selectedAssetId == a.asset_id
+                            ? "selected"
+                            : "";
+
                     assetSelect.innerHTML += `
-                <option value="${a.asset_id}" ${selected}>
-                    ${a.asset_name} (${a.asset_type})
-                </option>
-            `;
+                        <option value="${a.asset_id}" ${selected}>
+                            ${a.asset_name}
+                        </option>
+                    `;
                 });
         }
 
@@ -253,7 +262,6 @@
         }
 
         async function init() {
-            await loadAssets();
             await loadSites();
             await loadDevices();
         }
