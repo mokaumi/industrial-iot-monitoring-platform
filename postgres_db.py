@@ -178,7 +178,152 @@ def resolve_open_incidents_pg(device_eui):
     AND incident_status IN ('OPEN', 'ACKNOWLEDGED')
     AND anomaly_reason ILIKE 'Device offline%%'
     """, (device_eui,))
-
+    
     conn.commit()
     cursor.close()
     conn.close()
+
+
+
+
+def get_alarm_rules_for_device_pg(device_eui):
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT parameter, min_value, max_value, severity
+    FROM alarm_rules
+    WHERE device_eui = %s
+    AND is_active = 1
+    """, (device_eui,))
+
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return rows
+
+
+def evaluate_alarm_rules_pg(device_eui, telemetry):
+    rules = get_alarm_rules_for_device_pg(device_eui)
+    alarms = []
+
+    for rule in rules:
+        parameter = rule[0]
+        min_value = rule[1]
+        max_value = rule[2]
+        severity = rule[3]
+
+        if parameter not in telemetry:
+            continue
+
+        try:
+            value = float(telemetry[parameter])
+        except:
+            continue
+
+        if min_value is not None and value < min_value:
+            alarms.append({
+                "parameter": parameter,
+                "value": value,
+                "severity": severity,
+                "reason": f"{parameter} below minimum: {value} < {min_value}"
+            })
+
+        if max_value is not None and value > max_value:
+            alarms.append({
+                "parameter": parameter,
+                "value": value,
+                "severity": severity,
+                "reason": f"{parameter} above maximum: {value} > {max_value}"
+            })
+
+    return alarms
+
+
+
+def create_or_update_active_alarm_pg(
+    device_eui,
+    parameter,
+    alarm_reason,
+    severity
+):
+
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT id
+    FROM active_alarms
+    WHERE device_eui = %s
+    AND parameter = %s
+    AND alarm_status = 'OPEN'
+    """, (device_eui, parameter))
+
+    existing = cursor.fetchone()
+
+    if existing:
+
+        cursor.execute("""
+        UPDATE active_alarms
+        SET last_seen = CURRENT_TIMESTAMP
+        WHERE id = %s
+        """, (existing[0],))
+
+    else:
+
+        cursor.execute("""
+        INSERT INTO active_alarms
+        (
+            device_eui,
+            parameter,
+            alarm_reason,
+            severity
+        )
+        VALUES (%s,%s,%s,%s)
+        """, (
+            device_eui,
+            parameter,
+            alarm_reason,
+            severity
+        ))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+    
+
+
+
+def clear_active_alarm_pg(
+    device_eui,
+    parameter
+):
+
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE active_alarms
+    SET
+        alarm_status = 'CLEARED',
+        cleared_at = CURRENT_TIMESTAMP
+    WHERE device_eui = %s
+    AND parameter = %s
+    AND alarm_status = 'OPEN'
+    """, (
+        device_eui,
+        parameter
+    ))
+
+    conn.commit()
+
+    cursor.close()
+    conn.close()
+
+
+
+
+   

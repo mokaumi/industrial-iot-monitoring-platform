@@ -73,6 +73,38 @@ CREATE TABLE IF NOT EXISTS devices (
 
 
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS alarm_rules (
+    id SERIAL PRIMARY KEY,
+    device_eui TEXT NOT NULL,
+    parameter TEXT NOT NULL,
+    min_value REAL,
+    max_value REAL,
+    severity TEXT DEFAULT 'MEDIUM',
+    is_active INTEGER DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+""")
+
+
+
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS active_alarms (
+    id SERIAL PRIMARY KEY,
+    device_eui TEXT NOT NULL,
+    parameter TEXT NOT NULL,
+    alarm_reason TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    alarm_status TEXT DEFAULT 'OPEN',
+    first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    cleared_at TIMESTAMP
+);
+""")
+
+
+
 
 conn.commit()
 cursor.close()

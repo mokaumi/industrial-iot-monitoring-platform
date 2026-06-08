@@ -4,8 +4,15 @@ import time
 import paho.mqtt.client as mqtt
 
 # from database import insert_data
+from postgres_db import (
+    insert_sensor_data_pg,
+    evaluate_alarm_rules_pg,
+    insert_anomaly_event_pg,
+    create_or_update_active_alarm_pg,
+    clear_active_alarm_pg,
+    recent_anomaly_exists_pg
+)
 
-from postgres_db import insert_sensor_data_pg
 # from database import get_asset_by_device
 
 BROKER = "mosquitto"
@@ -77,10 +84,50 @@ def on_message(client, userdata, msg):
             )
 
             print("Inserted MQTT data into PostgreSQL")
+            alarms = evaluate_alarm_rules_pg(
+                decoded_payload.get("device_eui"),
+                decoded_payload
+            )
+
+            triggered_parameters = []
+
+            for alarm in alarms:
+                triggered_parameters.append(alarm["parameter"])
+
+                create_or_update_active_alarm_pg(
+                    decoded_payload.get("device_eui"),
+                    alarm["parameter"],
+                    alarm["reason"],
+                    alarm["severity"]
+                )
+
+                if not recent_anomaly_exists_pg(
+                    decoded_payload.get("device_eui"),
+                    "HIGH" if alarm["severity"] == "CRITICAL" else "MEDIUM",
+                    minutes=5
+                ):
+                    insert_anomaly_event_pg(
+                        decoded_payload.get("site", "UNKNOWN_SITE"),
+                        decoded_payload.get("device_eui"),
+                        decoded_payload.get("device_type", "unknown"),
+                        100 if alarm["severity"] == "CRITICAL" else 70,
+                        "HIGH" if alarm["severity"] == "CRITICAL" else "MEDIUM",
+                        alarm["reason"]
+                    )
+
+                print("Active alarm updated:", alarm["reason"])
+
+                # Clear active alarms when value returns to normal
+            for parameter in ["temperature", "humidity", "battery", "pressure", "smoke"]:
+                if parameter in decoded_payload and parameter not in triggered_parameters:
+                    clear_active_alarm_pg(
+                        decoded_payload.get("device_eui"),
+                        parameter
+                    )
 
         except Exception as pg_error:
             print("PostgreSQL insert error:", pg_error)
-
+                  
         
         client.publish(
                 NORMALIZED_TOPIC,
