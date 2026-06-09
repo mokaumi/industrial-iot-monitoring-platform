@@ -2,6 +2,29 @@
 import psycopg2
 
 
+def acknowledge_active_alarm_pg(alarm_id, acknowledged_by="admin"):
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE active_alarms
+    SET alarm_status = 'ACKNOWLEDGED'
+    WHERE id = %s
+    AND alarm_status = 'OPEN'
+    RETURNING id
+    """, (alarm_id,))
+
+    updated = cursor.fetchone()
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return updated is not None
+
+
+
+
 
 def active_alarm_exists_pg(device_eui, parameter):
 
@@ -340,7 +363,7 @@ def create_or_update_active_alarm_pg(
     FROM active_alarms
     WHERE device_eui = %s
     AND parameter = %s
-    AND alarm_status = 'OPEN'
+    AND alarm_status IN ('OPEN', 'ACKNOWLEDGED')
     """, (device_eui, parameter))
 
     existing = cursor.fetchone()
@@ -394,7 +417,7 @@ def clear_active_alarm_pg(
         cleared_at = CURRENT_TIMESTAMP
     WHERE device_eui = %s
     AND parameter = %s
-    AND alarm_status = 'OPEN'
+    AND alarm_status IN ('OPEN', 'ACKNOWLEDGED')
     """, (
         device_eui,
         parameter

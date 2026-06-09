@@ -25,7 +25,7 @@ from postgres_db import get_data_by_asset_pg
 from postgres_db import insert_anomaly_event_pg 
 from postgres_db import recent_anomaly_exists_pg
 from postgres_db import resolve_open_incidents_pg
-
+from postgres_db import acknowledge_active_alarm_pg
 
 
 app = Flask(__name__)
@@ -55,6 +55,28 @@ register_admin_routes(app)
 # ---------------- THREADS ----------------
 # threading.Thread(target=udp_listener, daemon=True).start()
 threading.Thread(target=mqtt_listener, daemon=True).start()
+
+
+
+@app.route("/active_alarms/<int:alarm_id>/acknowledge", methods=["POST"])
+def acknowledge_active_alarm(alarm_id):
+    user = session.get("user", "admin")
+
+    success = acknowledge_active_alarm_pg(
+        alarm_id,
+        user
+    )
+
+    if not success:
+        return jsonify({
+            "error": "Alarm not found or not OPEN"
+        }), 404
+
+    return jsonify({
+        "message": "Alarm acknowledged successfully",
+        "alarm_id": alarm_id,
+        "acknowledged_by": user
+    })
 
 
 
