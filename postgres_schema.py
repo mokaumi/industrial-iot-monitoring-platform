@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS alarm_rules (
     parameter TEXT NOT NULL,
     min_value REAL,
     max_value REAL,
+    clear_margin REAL DEFAULT 0,
     severity TEXT DEFAULT 'MEDIUM',
     is_active INTEGER DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

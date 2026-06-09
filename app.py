@@ -58,6 +58,51 @@ threading.Thread(target=mqtt_listener, daemon=True).start()
 
 
 
+
+@app.route("/active_alarms")
+def active_alarms():
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        id,
+        device_eui,
+        parameter,
+        alarm_reason,
+        severity,
+        alarm_status,
+        first_seen,
+        last_seen,
+        cleared_at
+    FROM active_alarms
+    ORDER BY id DESC
+    LIMIT 100
+    """)
+
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    alarms = []
+
+    for r in rows:
+        alarms.append({
+            "id": r[0],
+            "device_eui": r[1],
+            "parameter": r[2],
+            "alarm_reason": r[3],
+            "severity": r[4],
+            "alarm_status": r[5],
+            "first_seen": str(r[6]),
+            "last_seen": str(r[7]),
+            "cleared_at": str(r[8]) if r[8] else None
+        })
+
+    return jsonify(alarms)
+
+
 @app.route("/devices_by_asset/<int:asset_id>")
 def devices_by_asset(asset_id):
     conn = get_pg_connection()

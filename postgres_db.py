@@ -2,6 +2,33 @@
 import psycopg2
 
 
+
+def active_alarm_exists_pg(device_eui, parameter):
+
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT id
+    FROM active_alarms
+    WHERE device_eui = %s
+    AND parameter = %s
+    AND alarm_status = 'OPEN'
+    """, (
+        device_eui,
+        parameter
+    ))
+
+    result = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    return result is not None
+
+
+
+
 def get_pg_connection():
     return psycopg2.connect(
         host="postgres",
@@ -191,7 +218,7 @@ def get_alarm_rules_for_device_pg(device_eui):
     cursor = conn.cursor()
 
     cursor.execute("""
-    SELECT parameter, min_value, max_value, severity
+    SELECT parameter, min_value, max_value, clear_margin, severity
     FROM alarm_rules
     WHERE device_eui = %s
     AND is_active = 1
@@ -206,14 +233,18 @@ def get_alarm_rules_for_device_pg(device_eui):
 
 
 def evaluate_alarm_rules_pg(device_eui, telemetry):
+
     rules = get_alarm_rules_for_device_pg(device_eui)
+
     alarms = []
 
     for rule in rules:
+
         parameter = rule[0]
         min_value = rule[1]
         max_value = rule[2]
-        severity = rule[3]
+        clear_margin = rule[3]
+        severity = rule[4]
 
         if parameter not in telemetry:
             continue
@@ -223,21 +254,72 @@ def evaluate_alarm_rules_pg(device_eui, telemetry):
         except:
             continue
 
-        if min_value is not None and value < min_value:
-            alarms.append({
-                "parameter": parameter,
-                "value": value,
-                "severity": severity,
-                "reason": f"{parameter} below minimum: {value} < {min_value}"
-            })
+        alarm_open = active_alarm_exists_pg(
+            device_eui,
+            parameter
+        )
 
-        if max_value is not None and value > max_value:
-            alarms.append({
-                "parameter": parameter,
-                "value": value,
-                "severity": severity,
-                "reason": f"{parameter} above maximum: {value} > {max_value}"
-            })
+        #
+        # HIGH ALARM
+        #
+        if max_value is not None:
+
+            if not alarm_open:
+
+                if value > max_value:
+
+                    alarms.append({
+                        "parameter": parameter,
+                        "value": value,
+                        "severity": severity,
+                        "reason":
+                            f"{parameter} above maximum: "
+                            f"{value} > {max_value}"
+                    })
+
+            else:
+
+                # Keep alarm active until below hysteresis level
+
+                if value > (max_value - clear_margin):
+
+                    alarms.append({
+                        "parameter": parameter,
+                        "value": value,
+                        "severity": severity,
+                        "reason":
+                            f"{parameter} still above hysteresis level"
+                    })
+
+        #
+        # LOW ALARM
+        #
+        if min_value is not None:
+
+            if not alarm_open:
+
+                if value < min_value:
+
+                    alarms.append({
+                        "parameter": parameter,
+                        "value": value,
+                        "severity": severity,
+                        "reason":
+                            f"{parameter} below minimum: "
+                            f"{value} < {min_value}"
+                    })
+
+            else:
+
+                if value < (min_value + clear_margin):
+
+                    alarms.append({
+                        "parameter": parameter,
+                        "value": value,
+                        "severity": severity,
+                        "reason":
+                            f"{parameter} still below hysteresis level"
+                    })
 
     return alarms
 
