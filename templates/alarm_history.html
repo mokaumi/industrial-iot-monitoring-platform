@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Alarm History</title>
+<style>
+body{font-family:Arial;background:#f5f5f5;padding:20px}
+.top{display:flex;justify-content:space-between;align-items:center}
+table{width:100%;border-collapse:collapse;background:white;margin-top:20px}
+th,td{padding:10px;border:1px solid #ddd}
+th{background:#111827;color:white}
+input,select,button,a{padding:8px;margin:5px}
+.open{color:red;font-weight:bold}
+.ack{color:orange;font-weight:bold}
+.cleared{color:green;font-weight:bold}
+.btn{background:#374151;color:white;text-decoration:none;border-radius:5px}
+</style>
+</head>
+<body>
+
+<div class="top">
+    <h2>📜 Alarm History</h2>
+    <a href="/" class="btn">Back to Dashboard</a>
+</div>
+
+<div>
+    <input id="deviceFilter" placeholder="Filter Device EUI" oninput="renderTable()">
+
+    <select id="statusFilter" onchange="renderTable()">
+        <option value="">All Status</option>
+        <option value="OPEN">OPEN</option>
+        <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
+        <option value="CLEARED">CLEARED</option>
+    </select>
+
+    <select id="severityFilter" onchange="renderTable()">
+        <option value="">All Severity</option>
+        <option value="CRITICAL">CRITICAL</option>
+        <option value="WARNING">WARNING</option>
+        <option value="MEDIUM">MEDIUM</option>
+    </select>
+
+    <button onclick="downloadCSV()">Export CSV</button>
+</div>
+
+<table>
+<thead>
+<tr>
+    <th>ID</th>
+    <th>Device</th>
+    <th>Parameter</th>
+    <th>Severity</th>
+    <th>Status</th>
+    <th>Reason</th>
+    <th>First Seen</th>
+    <th>Last Seen</th>
+    <th>Cleared At</th>
+</tr>
+</thead>
+<tbody id="historyBody"></tbody>
+</table>
+
+<script>
+let allHistory = [];
+
+async function loadHistory(){
+    const res = await fetch("/alarm_history_full");
+    allHistory = await res.json();
+    renderTable();
+}
+
+function renderTable(){
+    const device = document.getElementById("deviceFilter").value.toLowerCase();
+    const status = document.getElementById("statusFilter").value;
+    const severity = document.getElementById("severityFilter").value;
+
+    const body = document.getElementById("historyBody");
+    body.innerHTML = "";
+
+    allHistory
+        .filter(a => !device || a.device_eui.toLowerCase().includes(device))
+        .filter(a => !status || a.alarm_status === status)
+        .filter(a => !severity || a.severity === severity)
+        .forEach(a => {
+            let cls = "";
+            if(a.alarm_status === "OPEN") cls = "open";
+            if(a.alarm_status === "ACKNOWLEDGED") cls = "ack";
+            if(a.alarm_status === "CLEARED") cls = "cleared";
+
+            body.innerHTML += `
+            <tr>
+                <td>${a.id}</td>
+                <td>${a.device_eui}</td>
+                <td>${a.parameter}</td>
+                <td>${a.severity}</td>
+                <td class="${cls}">${a.alarm_status}</td>
+                <td>${a.alarm_reason}</td>
+                <td>${a.first_seen}</td>
+                <td>${a.last_seen}</td>
+                <td>${a.cleared_at || "-"}</td>
+            </tr>`;
+        });
+}
+
+function downloadCSV(){
+    let rows = [["ID","Device","Parameter","Severity","Status","Reason","First Seen","Last Seen","Cleared At"]];
+
+    allHistory.forEach(a => {
+        rows.push([
+            a.id,
+            a.device_eui,
+            a.parameter,
+            a.severity,
+            a.alarm_status,
+            a.alarm_reason,
+            a.first_seen,
+            a.last_seen,
+            a.cleared_at
+        ]);
+    });
+
+    let csv = rows.map(r => r.map(v => `"${v}"`).join(",")).join("\n");
+    let blob = new Blob([csv], {type:"text/csv"});
+    let url = URL.createObjectURL(blob);
+
+    let a = document.createElement("a");
+    a.href = url;
+    a.download = "alarm_history.csv";
+    a.click();
+}
+
+loadHistory();
+</script>
+
+</body>
+</html>

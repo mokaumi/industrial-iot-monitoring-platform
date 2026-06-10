@@ -922,10 +922,39 @@ body::after {
             <a href="/site_registry_page" class="admin-btn">
                 Site Registry
             </a>
+            <a href="/active_alarms_page" class="admin-btn">
+                Active Alarms
+            </a>
+            <a href="/alarm_history_page" class="admin-btn">Alarm History</a>
         
             <a href="/logout" class="logout-btn">Logout</a>
         </div>
     </div>
+
+
+
+    <div class="card" id="activeAlarmWidget">
+        <h3>🚨 Active Alarms</h3>
+    
+        <div id="activeAlarmSummary">
+            Loading alarms...
+        </div>
+    
+        <table style="width:100%; margin-top:10px;">
+            <thead>
+                <tr>
+                    <th>Device</th>
+                    <th>Parameter</th>
+                    <th>Severity</th>
+                    <th>Status</th>
+                    <th>Reason</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="activeAlarmWidgetBody"></tbody>
+        </table>
+    </div>
+
 
     
 
@@ -1514,6 +1543,76 @@ body::after {
     let currentAssetDevices = [];
 
 
+
+
+    async function ackAlarmFromDashboard(id) {
+            await fetch(`/active_alarms/${id}/acknowledge`, {
+                method: "POST"
+            });
+
+            await loadActiveAlarmWidget();
+        }
+
+
+
+
+    async function loadActiveAlarmWidget() {
+            const res = await fetch("/active_alarms");
+            const alarms = await res.json();
+
+            const summary = document.getElementById("activeAlarmSummary");
+            const body = document.getElementById("activeAlarmWidgetBody");
+
+            body.innerHTML = "";
+
+            if (alarms.length === 0) {
+                summary.innerHTML = `
+            <span style="color:lime;font-weight:bold;">
+                ✅ No active alarms
+            </span>
+        `;
+                return;
+            }
+
+            const criticalCount = alarms.filter(a => a.severity === "CRITICAL").length;
+            const acknowledgedCount = alarms.filter(a => a.alarm_status === "ACKNOWLEDGED").length;
+
+            summary.innerHTML = `
+        <span style="color:red;font-weight:bold;">
+            ${alarms.length} Active Alarm(s)
+        </span>
+        |
+        <span style="color:red;">
+            ${criticalCount} Critical
+        </span>
+        |
+        <span style="color:orange;">
+            ${acknowledgedCount} Acknowledged
+        </span>
+    `;
+
+            alarms.forEach(a => {
+                const canAck = a.alarm_status === "OPEN";
+
+                body.innerHTML += `
+            <tr>
+                <td>${a.device_eui}</td>
+                <td>${a.parameter}</td>
+                <td style="color:${a.severity === "CRITICAL" ? "red" : "orange"};font-weight:bold;">
+                    ${a.severity}
+                </td>
+                <td>${a.alarm_status}</td>
+                <td>${a.alarm_reason}</td>
+                <td>
+                    ${canAck
+                        ? `<button onclick="ackAlarmFromDashboard(${a.id})">ACK</button>`
+                        : "-"
+                    }
+                </td>
+            </tr>
+        `;
+            });
+        }
 
 
     async function loadHeartbeatStatus() {
@@ -4160,6 +4259,8 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
 
     loadRecentIncidents();
     setInterval(loadRecentIncidents, 10000);
+    loadActiveAlarmWidget();
+    setInterval(loadActiveAlarmWidget, 5000);
 
     startDashboard();
 </script>

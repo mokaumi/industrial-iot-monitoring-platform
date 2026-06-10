@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<title>Active Alarms</title>
+
+<style>
+
+body{
+    font-family:Arial,sans-serif;
+    background:#f5f5f5;
+    padding:20px;
+}
+
+h2{
+    margin-bottom:20px;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    background:white;
+}
+
+th,td{
+    padding:12px;
+    border:1px solid #ddd;
+}
+
+th{
+    background:#333;
+    color:white;
+}
+
+.open{
+    color:red;
+    font-weight:bold;
+}
+
+.ack{
+    color:orange;
+    font-weight:bold;
+}
+
+.cleared{
+    color:green;
+    font-weight:bold;
+}
+
+button{
+    padding:6px 12px;
+    cursor:pointer;
+}
+
+</style>
+
+</head>
+<body>
+
+<h2>🚨 Active Alarm Dashboard</h2>
+
+<table>
+
+<thead>
+
+<tr>
+<th>ID</th>
+<th>Device</th>
+<th>Parameter</th>
+<th>Severity</th>
+<th>Status</th>
+<th>Reason</th>
+<th>First Seen</th>
+<th>Last Seen</th>
+<th>Action</th>
+</tr>
+
+</thead>
+
+<tbody id="alarmTableBody">
+
+</tbody>
+
+</table>
+
+<script>
+
+async function loadAlarms(){
+
+    const res =
+        await fetch("/active_alarms");
+
+    const alarms =
+        await res.json();
+
+    const tbody =
+        document.getElementById("alarmTableBody");
+
+    tbody.innerHTML = "";
+
+    alarms.forEach(a => {
+
+        let cls = "";
+
+        if(a.alarm_status === "OPEN")
+            cls = "open";
+
+        if(a.alarm_status === "ACKNOWLEDGED")
+            cls = "ack";
+
+        if(a.alarm_status === "CLEARED")
+            cls = "cleared";
+
+        tbody.innerHTML += `
+        <tr>
+
+        <td>${a.id}</td>
+
+        <td>${a.device_eui}</td>
+
+        <td>${a.parameter}</td>
+
+        <td>${a.severity}</td>
+
+        <td class="${cls}">
+            ${a.alarm_status}
+        </td>
+
+        <td>${a.alarm_reason}</td>
+
+        <td>${a.first_seen}</td>
+
+        <td>${a.last_seen}</td>
+
+        <td>
+
+        ${
+            a.alarm_status === "OPEN"
+            ?
+            `<button onclick="ackAlarm(${a.id})">
+                ACK
+             </button>`
+            :
+            "-"
+        }
+
+        </td>
+
+        </tr>
+        `;
+    });
+}
+
+async function ackAlarm(id){
+
+    await fetch(
+        `/active_alarms/${id}/acknowledge`,
+        {
+            method:"POST"
+        }
+    );
+
+    loadAlarms();
+}
+
+loadAlarms();
+
+setInterval(loadAlarms,5000);
+
+</script>
+
+</body>
+</html>
