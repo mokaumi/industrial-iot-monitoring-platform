@@ -105,7 +105,34 @@ CREATE TABLE IF NOT EXISTS active_alarms (
 """)
 
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS command_responses (
+    id SERIAL PRIMARY KEY,
+    device_eui TEXT,
+    command TEXT,
+    status TEXT,
+    message TEXT,
+    source TEXT,
+    response_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+""")
 
+
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS device_twin (
+    id SERIAL PRIMARY KEY,
+    device_eui TEXT UNIQUE,
+
+    desired_reporting_interval INTEGER DEFAULT 60,
+    desired_alarm_enabled BOOLEAN DEFAULT TRUE,
+
+    reported_reporting_interval INTEGER DEFAULT 60,
+    reported_alarm_enabled BOOLEAN DEFAULT TRUE,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+""")
 
 conn.commit()
 cursor.close()

@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Device Details</title>
+<style>
+body{font-family:Arial;background:#111827;color:white;padding:20px}
+.top{display:flex;justify-content:space-between;align-items:center}
+.card{background:#1f2937;padding:20px;border-radius:8px;margin:15px 0}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}
+.value{font-size:24px;font-weight:bold}
+.green{color:#00ff66}.red{color:#ff4444}.orange{color:orange}
+table{width:100%;border-collapse:collapse;background:#1f2937}
+th,td{padding:10px;border-bottom:1px solid #374151}
+th{background:#111827}
+a,.btn{background:#2563eb;color:white;padding:10px;text-decoration:none;border-radius:5px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<div class="top">
+    <h2 id="title">Device Details</h2>
+    <a href="/device_status_page" class="btn">Back to Device Status</a>
+</div>
+
+<div class="card">
+    <h3>Device Information</h3>
+    <p><b>EUI:</b> <span id="deviceEui"></span></p>
+    <p><b>Name:</b> <span id="deviceName"></span></p>
+    <p><b>Type:</b> <span id="deviceType"></span></p>
+    <p><b>Site:</b> <span id="deviceSite"></span></p>
+    <p><b>Asset:</b> <span id="assetName"></span></p>
+</div>
+
+
+
+<div class="card">
+    <h3>🧠 Device Health</h3>
+
+    <p><b>Status:</b>
+        <span id="healthStatus">--</span>
+    </p>
+
+    <p><b>Health Score:</b>
+        <span id="healthScore">--</span>
+    </p>
+
+    <p><b>Last Seen:</b>
+        <span id="lastSeen">--</span>
+    </p>
+</div>
+
+
+
+<div class="card">
+    <h3>📡 Device Activity</h3>
+
+    <div class="grid">
+
+        <div class="card">
+            Last Packet<br>
+            <span class="value" id="lastPacket">--</span>
+        </div>
+
+        <div class="card">
+            Packets Today<br>
+            <span class="value" id="packetsToday">--</span>
+        </div>
+
+        <div class="card">
+            Reporting Interval<br>
+            <span class="value" id="reportingInterval">--</span>
+        </div>
+
+        <div class="card">
+            Data Quality<br>
+            <span class="value" id="dataQuality">--</span>
+        </div>
+
+    </div>
+</div>
+
+
+
+
+<div class="card">
+    <h3>🎮 Device Commands</h3>
+
+    <button onclick="sendCommand('ping')">Ping Device</button>
+    <button onclick="sendCommand('get_status')">Get Status</button>
+    <button onclick="sendCommand('reboot')">Reboot Device</button>
+
+    <p id="commandResult"></p>
+</div>
+
+
+
+<div class="card">
+    <h3>⚙ Device Twin Configuration</h3>
+
+    <div class="grid">
+
+        <div>
+            <label>Reporting Interval (sec)</label><br>
+            <input type="number" id="reportingIntervalInput" value="60" min="1">
+        </div>
+
+        <div>
+            <label>Alarm Enabled</label><br>
+            <select id="alarmEnabledInput">
+                <option value="true">Enabled</option>
+                <option value="false">Disabled</option>
+            </select>
+        </div>
+
+    </div>
+
+    <br>
+
+    <button onclick="saveTwinConfig()">
+        Save Configuration
+    </button>
+
+    <p id="twinResult"></p>
+</div>
+
+
+
+<div class="card">
+    <h3>📜 Command History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Command</th>
+                <th>Status</th>
+                <th>Message</th>
+                <th>Source</th>
+            </tr>
+        </thead>
+
+        <tbody id="commandHistoryBody"></tbody>
+    </table>
+</div>
+
+
+
+<div class="card">
+    <h3>🚨 Active Alarms</h3>
+    <div id="deviceActiveAlarms">Loading...</div>
+</div>
+
+
+<div class="card">
+    <h3>📊 Alarm Analytics</h3>
+
+    <div class="grid">
+
+        <div class="card">
+            <strong>Total Alarms</strong><br>
+            <span class="value" id="alarmTotal">--</span>
+        </div>
+
+        <div class="card">
+            <strong>Critical</strong><br>
+            <span class="value" id="alarmCritical">--</span>
+        </div>
+
+        <div class="card">
+            <strong>Warning</strong><br>
+            <span class="value" id="alarmWarning">--</span>
+        </div>
+
+    </div>
+</div>
+
+
+<div class="grid" id="telemetryCards"></div>
+
+<div class="card">
+    <h3>Telemetry Trend</h3>
+    <canvas id="telemetryChart" height="100"></canvas>
+</div>
+
+<div class="card">
+    <h3>📊 Device Statistics</h3>
+    <div class="grid" id="statisticsCards"></div>
+</div>
+
+
+
+<div class="card">
+    <h3>🧠 AI Insights</h3>
+    <div id="aiInsights">Analyzing device behavior...</div>
+</div>
+
+
+<div class="card">
+    <h3>📋 Live Telemetry Table</h3>
+    <button onclick="downloadTelemetryCSV()">Export Device CSV</button>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Temperature</th>
+                <th>Humidity</th>
+                <th>Battery</th>
+                <th>Voltage</th>
+                <th>Current</th>
+                <th>Power</th>
+            </tr>
+        </thead>
+        <tbody id="telemetryTableBody"></tbody>
+    </table>
+</div>
+
+
+<div class="card">
+    <h3>Latest Raw Payload</h3>
+    <pre id="payload"></pre>
+</div>
+
+<div class="card">
+    <h3>Recent Alarms</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Parameter</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Reason</th>
+                <th>Last Seen</th>
+            </tr>
+        </thead>
+        <tbody id="alarmBody"></tbody>
+    </table>
+</div>
+
+<script>
+
+
+
+async function saveTwinConfig(){
+
+    const reportingInterval =
+        parseInt(
+            document.getElementById(
+                "reportingIntervalInput"
+            ).value
+        );
+
+    const alarmEnabled =
+        document.getElementById(
+            "alarmEnabledInput"
+        ).value === "true";
+
+    const res = await fetch(
+        `/device_twin/${deviceId}`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type":"application/json"
+            },
+            body: JSON.stringify({
+                reporting_interval: reportingInterval,
+                alarm_enabled: alarmEnabled
+            })
+        }
+    );
+
+    const result = await res.json();
+
+    document.getElementById("twinResult").innerText =
+        result.message;
+}
+
+
+
+async function loadTwinConfig(){
+
+    const res = await fetch(`/device_twin/${deviceId}`);
+    const twin = await res.json();
+
+    document.getElementById("reportingIntervalInput").value =
+        twin.desired.reporting_interval;
+
+    document.getElementById("alarmEnabledInput").value =
+        twin.desired.alarm_enabled.toString();
+}
+
+
+
+
+async function loadCommandHistory() {
+    const res = await fetch(`/device_command_history/${deviceId}`);
+    const rows = await res.json();
+
+    const body = document.getElementById("commandHistoryBody");
+    body.innerHTML = "";
+
+    if (rows.length === 0) {
+        body.innerHTML = `
+        <tr>
+            <td colspan="5">No command history yet</td>
+        </tr>
+    `;
+        return;
+    }
+
+    rows.forEach(r => {
+        body.innerHTML += `
+        <tr>
+            <td>${r.response_time}</td>
+            <td>${r.command}</td>
+            <td>${r.status}</td>
+            <td>${r.message}</td>
+            <td>${r.source}</td>
+        </tr>
+    `;
+    });
+}
+
+
+
+
+
+
+
+async function sendCommand(command){
+
+    const res = await fetch(`/send_command/${deviceId}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            command: command
+        })
+    });
+
+    const result = await res.json();
+
+    document.getElementById("commandResult").innerText =
+        result.message;
+}
+
+
+
+
+async function loadDeviceActivity() {
+
+    const res = await fetch(`/device_activity/${deviceId}`);
+    const data = await res.json();
+
+    document.getElementById("lastPacket").innerText =
+        data.last_packet || "--";
+
+    document.getElementById("packetsToday").innerText =
+        data.packets_today;
+
+    document.getElementById("reportingInterval").innerText =
+        data.reporting_interval;
+
+    document.getElementById("dataQuality").innerText =
+        data.data_quality;
+}
+
+
+async function loadAlarmSummary(){
+    const res = await fetch(`/device_alarm_summary/${deviceId}`);
+    const data = await res.json();
+
+
+    document.getElementById("alarmTotal").innerHTML =
+        `<span style="color:#ffffff">${data.total || 0}</span>`;
+
+    document.getElementById("alarmCritical").innerHTML =
+        `<span style="color:#ff4d4d">${data.critical || 0}</span>`;
+
+    document.getElementById("alarmWarning").innerHTML =
+        `<span style="color:#ffcc00">${data.warning || 0}</span>`;
+}
+
+
+
+async function loadDeviceActiveAlarms(){
+    const res = await fetch(`/device_active_alarms/${deviceId}`);
+    const alarms = await res.json();
+
+    const div = document.getElementById("deviceActiveAlarms");
+
+    if(alarms.length === 0){
+        div.innerHTML = `<span style="color:#00ff66;font-weight:bold;">✅ No active alarms</span>`;
+        return;
+    }
+
+    div.innerHTML = alarms.map(a => `
+        <div style="margin-bottom:10px;">
+            <strong style="color:${a.severity === "CRITICAL" ? "#ff4444" : "orange"};">
+                ${a.severity}
+            </strong>
+            |
+            <strong>${a.alarm_status}</strong>
+            |
+            ${a.parameter}
+            <br>
+            ${a.alarm_reason}
+            <br>
+            <small>Last Seen: ${a.last_seen}</small>
+        </div>
+    `).join("");
+}
+
+
+
+
+
+function updateTelemetryCards(payload){
+
+    const cards = document.getElementById("telemetryCards");
+    cards.innerHTML = "";
+
+    const metrics = [];
+
+    if(payload.temperature !== undefined){
+        metrics.push(["🌡 Temperature", `${payload.temperature} °C`]);
+    }
+
+    if(payload.humidity !== undefined){
+        metrics.push(["💧 Humidity", `${payload.humidity} %`]);
+    }
+
+    if(payload.battery !== undefined){
+        metrics.push(["🔋 Battery", `${payload.battery} V`]);
+    }
+
+    if(payload.pressure !== undefined){
+        metrics.push(["⛽ Pressure", `${payload.pressure} PSI`]);
+    }
+
+    if(payload.smoke !== undefined){
+        metrics.push(["💨 Smoke", payload.smoke == 1 ? "Detected" : "Normal"]);
+    }
+
+    if(payload.voltage !== undefined){
+        metrics.push(["⚡ Voltage", `${payload.voltage} V`]);
+    }
+
+    if(payload.current !== undefined){
+        metrics.push(["🔌 Current", `${payload.current} A`]);
+    }
+
+    if(payload.power !== undefined){
+        metrics.push(["⚙️ Power", `${payload.power} kW`]);
+    }
+
+    if(metrics.length === 0){
+        cards.innerHTML = `
+            <div class="card">
+                No telemetry metrics available
+            </div>
+        `;
+        return;
+    }
+
+    metrics.forEach(m => {
+        cards.innerHTML += `
+            <div class="card">
+                ${m[0]}<br>
+                <span class="value">${m[1]}</span>
+            </div>
+        `;
+    });
+}
+
+
+
+async function downloadTelemetryCSV(){
+    const res = await fetch(`/device_telemetry_history/${deviceId}`);
+    const rows = await res.json();
+
+    let csvRows = [
+        ["Time","Temperature","Humidity","Battery","Voltage","Current","Power"]
+    ];
+
+    rows.forEach(r => {
+        const payload = parsePayload(r.payload);
+
+        csvRows.push([
+            r.timestamp,
+            payload.temperature ?? "",
+            payload.humidity ?? "",
+            payload.battery ?? "",
+            payload.voltage ?? "",
+            payload.current ?? "",
+            payload.power ?? ""
+        ]);
+    });
+
+    const csv = csvRows
+        .map(row => row.map(v => `"${v}"`).join(","))
+        .join("\n");
+
+    const blob = new Blob([csv], {type:"text/csv"});
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `device_${deviceId}_telemetry.csv`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+}
+
+
+async function loadTelemetryTable(){
+    const res = await fetch(`/device_telemetry_history/${deviceId}`);
+    const rows = await res.json();
+
+    const body = document.getElementById("telemetryTableBody");
+    body.innerHTML = "";
+
+    rows.slice(-20).reverse().forEach(r => {
+        const payload = parsePayload(r.payload);
+
+        body.innerHTML += `
+        <tr>
+            <td>${r.timestamp}</td>
+            <td>${payload.temperature ?? "-"}</td>
+            <td>${payload.humidity ?? "-"}</td>
+            <td>${payload.battery ?? "-"}</td>
+            <td>${payload.voltage ?? "-"}</td>
+            <td>${payload.current ?? "-"}</td>
+            <td>${payload.power ?? "-"}</td>
+        </tr>`;
+    });
+}
+
+
+
+async function loadAIInsights(){
+
+    const res = await fetch(`/device_telemetry_history/${deviceId}`);
+    const rows = await res.json();
+
+    if(rows.length < 5){
+        document.getElementById("aiInsights").innerText =
+            "Not enough data for insight yet.";
+        return;
+    }
+
+    const temps = [];
+    const batteries = [];
+
+    rows.forEach(r => {
+        const payload = parsePayload(r.payload);
+
+        if(payload.temperature !== undefined)
+            temps.push(payload.temperature);
+
+        if(payload.battery !== undefined)
+            batteries.push(payload.battery);
+    });
+
+    let insights = [];
+
+    if(temps.length >= 5){
+        const latest = temps[temps.length - 1];
+        const previous = temps[temps.length - 5];
+
+        if(latest - previous > 10){
+            insights.push("⚠️ Temperature is rising rapidly.");
+        }
+
+        if(latest > 75){
+            insights.push("🔥 Current temperature is high.");
+        }
+
+        if(latest < 5){
+            insights.push("❄️ Temperature is unusually low.");
+        }
+    }
+
+    if(batteries.length){
+        const latestBattery = batteries[batteries.length - 1];
+
+        if(latestBattery < 3.5){
+            insights.push("🔋 Battery voltage is low.");
+        }
+    }
+
+    if(insights.length === 0){
+        insights.push("✅ No major abnormal behavior detected.");
+    }
+
+    document.getElementById("aiInsights").innerHTML =
+        insights.map(i => `<p>${i}</p>`).join("");
+}
+
+function updateDeviceHealth(latestTelemetry, payload){
+    const healthStatus = document.getElementById("healthStatus");
+    const healthScore = document.getElementById("healthScore");
+    const lastSeen = document.getElementById("lastSeen");
+
+    if (!latestTelemetry.timestamp) {
+        healthStatus.innerText = "NEVER SEEN";
+        healthStatus.style.color = "gray";
+        healthScore.innerText = "0%";
+        lastSeen.innerText = "-";
+        return;
+    }
+
+    const lastSeenTime = new Date(latestTelemetry.timestamp);
+    const now = new Date();
+    const ageSeconds = (now - lastSeenTime) / 1000;
+
+    let score = 100;
+    let status = "ONLINE";
+    let color = "#00ff66";
+
+    if (ageSeconds > 120) {
+        status = "STALE";
+        color = "orange";
+        score -= 30;
+    }
+
+    if (ageSeconds > 3600) {
+        status = "OFFLINE";
+        color = "#ff4444";
+        score -= 60;
+    }
+
+    if (payload.battery !== undefined && payload.battery < 3.5) {
+        score -= 20;
+    }
+
+    if (payload.temperature !== undefined && payload.temperature > 75) {
+        score -= 25;
+    }
+
+    if (score < 0) score = 0;
+
+    healthStatus.innerText = status;
+    healthStatus.style.color = color;
+
+    healthScore.innerText = `${score}%`;
+    lastSeen.innerText = latestTelemetry.timestamp;
+}
+
+
+
+
+
+
+const deviceId = "{{ device_id }}";
+
+function parsePayload(payloadText){
+    if(!payloadText) return {};
+
+    try{
+        return JSON.parse(payloadText.replaceAll("'", '"'));
+    }catch(e){
+        return {};
+    }
+}
+
+
+
+
+let telemetryChart = null;
+
+async function loadTelemetryChart(){
+    const res = await fetch(`/device_telemetry_history/${deviceId}`);
+    const rows = await res.json();
+
+    const labels = [];
+    const temperature = [];
+    const humidity = [];
+    const voltage = [];
+    const current = [];
+    const pressure = [];
+
+    rows.forEach(r => {
+        const payload = parsePayload(r.payload);
+
+        labels.push(r.timestamp.split(" ")[1]);
+
+        temperature.push(payload.temperature ?? null);
+        humidity.push(payload.humidity ?? null);
+        voltage.push(payload.voltage ?? null);
+        current.push(payload.current ?? null);
+        pressure.push(payload.pressure ?? null);
+    });
+
+    const datasets = [];
+
+    if (temperature.some(v => v !== null)) {
+        datasets.push({
+            label: "Temperature",
+            data: temperature
+        });
+    }
+
+    if (humidity.some(v => v !== null)) {
+        datasets.push({
+            label: "Humidity",
+            data: humidity
+        });
+    }
+
+    if (voltage.some(v => v !== null)) {
+        datasets.push({
+            label: "Voltage",
+            data: voltage
+        });
+    }
+
+    if (current.some(v => v !== null)) {
+        datasets.push({
+            label: "Current",
+            data: current
+        });
+    }
+
+    if (pressure.some(v => v !== null)) {
+        datasets.push({
+            label: "Pressure",
+            data: pressure
+        });
+    }
+
+    const ctx = document.getElementById("telemetryChart");
+
+    if (telemetryChart) {
+        telemetryChart.destroy();
+    }
+
+    telemetryChart = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true
+        }
+    });
+}
+
+
+
+
+async function loadDeviceStatistics(){
+
+    const res = await fetch(`/device_telemetry_history/${deviceId}`);
+    const rows = await res.json();
+
+    const metricData = {
+        temperature: [],
+        humidity: [],
+        battery: [],
+        voltage: [],
+        current: [],
+        power: [],
+        pressure: [],
+        smoke: []
+    };
+
+    rows.forEach(r => {
+        const payload = parsePayload(r.payload);
+
+        Object.keys(metricData).forEach(key => {
+            if(payload[key] !== undefined && payload[key] !== null){
+                metricData[key].push(Number(payload[key]));
+            }
+        });
+    });
+
+    const statsDiv = document.getElementById("statisticsCards");
+    statsDiv.innerHTML = "";
+
+    const units = {
+        temperature: "°C",
+        humidity: "%",
+        battery: "V",
+        voltage: "V",
+        current: "A",
+        power: "kW",
+        pressure: "PSI",
+        smoke: ""
+    };
+
+    Object.keys(metricData).forEach(metric => {
+        const values = metricData[metric];
+
+        if(values.length === 0) return;
+
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        const avg = values.reduce((a,b)=>a+b,0) / values.length;
+
+        const label = metric.charAt(0).toUpperCase() + metric.slice(1);
+
+        statsDiv.innerHTML += `
+            <div class="card">
+                <strong>${label}</strong><br>
+                Min: ${min.toFixed(1)} ${units[metric]}<br>
+                Max: ${max.toFixed(1)} ${units[metric]}<br>
+                Avg: ${avg.toFixed(1)} ${units[metric]}
+            </div>
+        `;
+    });
+
+    if(statsDiv.innerHTML === ""){
+        statsDiv.innerHTML = `
+            <div class="card">No statistics available</div>
+        `;
+    }
+}
+
+
+
+async function loadDeviceDetails(){
+    const res = await fetch(`/device_details/${deviceId}`);
+    const data = await res.json();
+
+    const d = data.device;
+    const t = data.latest_telemetry;
+    const payload = parsePayload(t.payload);
+    updateTelemetryCards(payload);
+    updateDeviceHealth(t, payload);
+
+    document.getElementById("title").innerText =
+        `📡 ${d.device_name} Details`;
+
+    document.getElementById("deviceEui").innerText = d.device_eui;
+    document.getElementById("deviceName").innerText = d.device_name;
+    document.getElementById("deviceType").innerText = d.device_type;
+    document.getElementById("deviceSite").innerText = d.site;
+    document.getElementById("assetName").innerText =
+        `${d.asset_name || "-"} (${d.asset_type || "-"})`;
+
+    
+    document.getElementById("payload").innerText =
+        JSON.stringify(payload, null, 2);
+
+    const body = document.getElementById("alarmBody");
+    body.innerHTML = "";
+
+    data.alarms.forEach(a => {
+        body.innerHTML += `
+        <tr>
+            <td>${a.id}</td>
+            <td>${a.parameter}</td>
+            <td>${a.severity}</td>
+            <td>${a.alarm_status}</td>
+            <td>${a.alarm_reason}</td>
+            <td>${a.last_seen}</td>
+        </tr>`;
+    });
+    loadTelemetryChart();
+    loadDeviceStatistics();
+    loadAIInsights();
+    loadTelemetryTable();
+    loadDeviceActiveAlarms();
+    loadAlarmSummary();
+    loadDeviceActivity();
+    loadCommandHistory();
+    loadTwinConfig();
+}
+loadDeviceDetails();
+setInterval(loadDeviceDetails, 5000);
+</script>
+
+</body>
+</html>

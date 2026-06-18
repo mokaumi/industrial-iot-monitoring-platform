@@ -10,7 +10,9 @@ from postgres_db import (
     insert_anomaly_event_pg,
     create_or_update_active_alarm_pg,
     clear_active_alarm_pg,
-    recent_anomaly_exists_pg
+    recent_anomaly_exists_pg,
+    insert_command_response_pg,
+    update_reported_twin_pg
 )
 
 # from database import get_asset_by_device
@@ -19,12 +21,20 @@ BROKER = "mosquitto"
 PORT = 1883
 TOPIC = "iot/telemetry"
 NORMALIZED_TOPIC = "iot/normalized"
+COMMAND_RESPONSE_TOPIC = "devices/command_responses"
+TWIN_REPORTED_TOPIC = "devices/twin_reported"
 
 
 def on_connect(client, userdata, flags, rc):
-    print("Connected to MQTT broker:", rc)
+    print("Connected to MQTT Broker with result code", rc)
+
     client.subscribe(TOPIC)
+    client.subscribe(COMMAND_RESPONSE_TOPIC)
+    client.subscribe(TWIN_REPORTED_TOPIC)
+
     print("Subscribed to:", TOPIC)
+    print("Subscribed to:", COMMAND_RESPONSE_TOPIC)
+    print("Subscribed to:", TWIN_REPORTED_TOPIC)
 
 
 def on_message(client, userdata, msg):
@@ -33,6 +43,32 @@ def on_message(client, userdata, msg):
         raw_payload = msg.payload.decode()
 
         print("RAW MQTT:", raw_payload)
+        
+        if msg.topic == TWIN_REPORTED_TOPIC:
+            reported = json.loads(raw_payload)
+
+            update_reported_twin_pg(
+                reported.get("device_eui"),
+                reported.get("reporting_interval"),
+                reported.get("alarm_enabled")
+            )
+
+            print("Updated reported twin:", reported)
+            return
+        
+        if msg.topic == COMMAND_RESPONSE_TOPIC:
+            response = json.loads(raw_payload)
+
+            insert_command_response_pg(
+                response.get("device_eui"),
+                response.get("command"),
+                response.get("status"),
+                response.get("message"),
+                response.get("source")
+            )
+
+            print("Inserted command response into PostgreSQL")
+            return
 
         decoded_payload = decode_payload(raw_payload)
 

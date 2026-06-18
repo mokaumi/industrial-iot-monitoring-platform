@@ -26,6 +26,7 @@ from postgres_db import insert_anomaly_event_pg
 from postgres_db import recent_anomaly_exists_pg
 from postgres_db import resolve_open_incidents_pg
 from postgres_db import acknowledge_active_alarm_pg
+import paho.mqtt.publish as publish
 
 
 app = Flask(__name__)
@@ -55,6 +56,753 @@ register_admin_routes(app)
 # ---------------- THREADS ----------------
 # threading.Thread(target=udp_listener, daemon=True).start()
 threading.Thread(target=mqtt_listener, daemon=True).start()
+
+
+
+
+
+
+@app.route("/device_twin/<int:device_id>", methods=["POST"])
+def update_device_twin(device_id):
+    data = request.get_json()
+
+    reporting_interval = data.get("reporting_interval")
+    alarm_enabled = data.get("alarm_enabled")
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT device_eui, device_name
+        FROM devices
+        WHERE id = %s
+    """, (device_id,))
+
+    device = cur.fetchone()
+
+    if not device:
+        cur.close()
+        conn.close()
+        return jsonify({"success": False, "message": "Device not found"}), 404
+
+    device_eui = device[0]
+    device_name = device[1]
+
+    cur.execute("""
+        UPDATE device_twin
+        SET
+            desired_reporting_interval = %s,
+            desired_alarm_enabled = %s,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE device_eui = %s
+    """, (
+        reporting_interval,
+        alarm_enabled,
+        device_eui
+    ))
+
+
+    command_payload = {
+        "device_eui": device_eui,
+        "command": "update_config",
+        "reporting_interval": reporting_interval,
+        "alarm_enabled": alarm_enabled,
+        "source": "device_twin"
+    }
+
+    command_topic = f"devices/{device_eui}/commands"
+
+    publish.single(
+        command_topic,
+        payload=json.dumps(command_payload),
+        hostname="mosquitto",
+        port=1883
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": f"Desired twin updated for {device_name}",
+        "device_eui": device_eui
+    })
+
+
+
+
+@app.route("/device_twin/<int:device_id>")
+def get_device_twin(device_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT d.device_eui, d.device_name
+        FROM devices d
+        WHERE d.id = %s
+    """, (device_id,))
+
+    device = cur.fetchone()
+
+    if not device:
+        cur.close()
+        conn.close()
+        return jsonify({"error": "Device not found"}), 404
+
+    device_eui = device[0]
+    device_name = device[1]
+
+    cur.execute("""
+        SELECT
+            desired_reporting_interval,
+            desired_alarm_enabled,
+            reported_reporting_interval,
+            reported_alarm_enabled,
+            updated_at
+        FROM device_twin
+        WHERE device_eui = %s
+    """, (device_eui,))
+
+    twin = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if not twin:
+        return jsonify({"error": "Twin not found"}), 404
+
+    return jsonify({
+        "device_eui": device_eui,
+        "device_name": device_name,
+        "desired": {
+            "reporting_interval": twin[0],
+            "alarm_enabled": twin[1]
+        },
+        "reported": {
+            "reporting_interval": twin[2],
+            "alarm_enabled": twin[3]
+        },
+        "updated_at": str(twin[4])
+    })
+
+
+
+@app.route("/device_command_history/<int:device_id>")
+def device_command_history(device_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT device_eui
+        FROM devices
+        WHERE id = %s
+    """, (device_id,))
+
+    row = cur.fetchone()
+
+    if not row:
+        cur.close()
+        conn.close()
+        return jsonify([])
+
+    device_eui = row[0]
+
+    cur.execute("""
+        SELECT
+            command,
+            status,
+            message,
+            source,
+            response_time
+        FROM command_responses
+        WHERE device_eui = %s
+        ORDER BY id DESC
+        LIMIT 10
+    """, (device_eui,))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "command": r[0],
+            "status": r[1],
+            "message": r[2],
+            "source": r[3],
+            "response_time": str(r[4])
+        }
+        for r in rows
+    ])
+
+
+@app.route("/send_command/<int:device_id>", methods=["POST"])
+def send_command(device_id):
+    data = request.get_json()
+
+    command = data.get("command")
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT device_eui, device_name
+        FROM devices
+        WHERE id = %s
+    """, (device_id,))
+
+    device = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if not device:
+        return jsonify({
+            "success": False,
+            "message": "Device not found"
+        }), 404
+
+    device_eui = device[0]
+    device_name = device[1]
+
+    command_payload = {
+        "device_eui": device_eui,
+        "device_name": device_name,
+        "command": command,
+        "source": "dashboard"
+    }
+
+    command_topic = f"devices/{device_eui}/commands"
+
+    publish.single(
+        command_topic,
+        payload=json.dumps(command_payload),
+        hostname="mosquitto",
+        port=1883
+    )
+
+    print(f"MQTT COMMAND PUBLISHED: {command_topic} -> {command_payload}")
+
+    return jsonify({
+        "success": True,
+        "message": f"{command} command published to {device_name}",
+        "device_eui": device_eui,
+        "topic": command_topic
+    })
+
+
+
+
+@app.route("/device_activity/<int:device_id>")
+def device_activity(device_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT device_eui
+        FROM devices
+        WHERE id = %s
+    """, (device_id,))
+
+    row = cur.fetchone()
+
+    if not row:
+        cur.close()
+        conn.close()
+        return jsonify({
+            "last_packet": None,
+            "packets_today": 0,
+            "reporting_interval": "Unknown",
+            "data_quality": "0%"
+        })
+
+    device_eui = row[0]
+
+    cur.execute("""
+        SELECT timestamp
+        FROM sensor_data
+        WHERE device_eui = %s
+        ORDER BY timestamp DESC
+        LIMIT 100
+    """, (device_eui,))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    if not rows:
+        return jsonify({
+            "last_packet": None,
+            "packets_today": 0,
+            "reporting_interval": "Unknown",
+            "data_quality": "0%"
+        })
+
+    last_packet = rows[0][0]
+
+    packets_today = sum(
+        1 for r in rows
+        if r[0].date() == last_packet.date()
+    )
+
+    if len(rows) >= 2:
+        interval = abs((rows[0][0] - rows[1][0]).total_seconds())
+        reporting_interval = f"{int(interval)} sec"
+    else:
+        reporting_interval = "Unknown"
+
+    data_quality = "100%" if reporting_interval != "Unknown" else "50%"
+
+    return jsonify({
+        "last_packet": str(last_packet),
+        "packets_today": packets_today,
+        "reporting_interval": reporting_interval,
+        "data_quality": data_quality
+    })
+
+
+
+
+@app.route("/device_alarm_summary/<int:device_id>")
+def device_alarm_summary(device_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT device_eui
+        FROM devices
+        WHERE id = %s
+    """, (device_id,))
+
+    row = cur.fetchone()
+
+    if not row:
+        cur.close()
+        conn.close()
+        return jsonify({
+            "total": 0,
+            "critical": 0,
+            "warning": 0
+        })
+
+    device_eui = row[0]
+
+    cur.execute("""
+        SELECT
+            COUNT(*),
+            COUNT(*) FILTER (WHERE severity = 'CRITICAL'),
+            COUNT(*) FILTER (WHERE severity = 'WARNING')
+        FROM active_alarms
+        WHERE device_eui = %s
+    """, (device_eui,))
+
+    stats = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "total": stats[0],
+        "critical": stats[1],
+        "warning": stats[2]
+    })
+
+
+@app.route("/device_active_alarms/<int:device_id>")
+def device_active_alarms(device_id):
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT device_eui
+    FROM devices
+    WHERE id = %s
+    """, (device_id,))
+
+    device = cursor.fetchone()
+
+    if not device:
+        cursor.close()
+        conn.close()
+        return jsonify({"error": "Device not found"}), 404
+
+    device_eui = device[0]
+
+    cursor.execute("""
+    SELECT
+        id,
+        parameter,
+        alarm_reason,
+        severity,
+        alarm_status,
+        first_seen,
+        last_seen
+    FROM active_alarms
+    WHERE device_eui = %s
+    AND alarm_status IN ('OPEN','ACKNOWLEDGED')
+    ORDER BY id DESC
+    """, (device_eui,))
+
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "parameter": r[1],
+            "alarm_reason": r[2],
+            "severity": r[3],
+            "alarm_status": r[4],
+            "first_seen": str(r[5]),
+            "last_seen": str(r[6])
+        }
+        for r in rows
+    ])
+
+
+
+@app.route("/device_telemetry_history/<int:device_id>")
+def device_telemetry_history(device_id):
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT device_eui
+    FROM devices
+    WHERE id = %s
+    """, (device_id,))
+
+    device = cursor.fetchone()
+
+    if not device:
+        cursor.close()
+        conn.close()
+        return jsonify({"error": "Device not found"}), 404
+
+    device_eui = device[0]
+
+    cursor.execute("""
+    SELECT
+        timestamp,
+        payload
+    FROM sensor_data
+    WHERE device_eui = %s
+    ORDER BY timestamp DESC
+    LIMIT 100
+    """, (device_eui,))
+
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    data = []
+
+    for r in reversed(rows):
+        data.append({
+            "timestamp": str(r[0]),
+            "payload": r[1]
+        })
+
+    return jsonify(data)
+
+@app.route("/device_details_page/<int:device_id>")
+def device_details_page(device_id):
+    if "user" not in session:
+        return redirect("/login")
+
+    return render_template(
+        "device_details.html",
+        device_id=device_id
+    )
+
+
+
+@app.route("/device_details/<int:device_id>")
+def device_details(device_id):
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        d.id,
+        d.device_eui,
+        d.device_name,
+        d.device_type,
+        d.site,
+        d.asset_id,
+        a.asset_name,
+        a.asset_type
+    FROM devices d
+    LEFT JOIN assets a
+        ON d.asset_id = a.id
+    WHERE d.id = %s
+    """, (device_id,))
+
+    device = cursor.fetchone()
+
+    if not device:
+        cursor.close()
+        conn.close()
+        return jsonify({"error": "Device not found"}), 404
+
+    device_eui = device[1]
+
+    cursor.execute("""
+    SELECT
+        timestamp,
+        temp,
+        payload
+    FROM sensor_data
+    WHERE device_eui = %s
+    ORDER BY timestamp DESC
+    LIMIT 1
+    """, (device_eui,))
+
+    latest = cursor.fetchone()
+
+    cursor.execute("""
+    SELECT
+        id,
+        parameter,
+        alarm_reason,
+        severity,
+        alarm_status,
+        first_seen,
+        last_seen
+    FROM active_alarms
+    WHERE device_eui = %s
+    ORDER BY id DESC
+    LIMIT 10
+    """, (device_eui,))
+
+    alarms = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "device": {
+            "id": device[0],
+            "device_eui": device[1],
+            "device_name": device[2],
+            "device_type": device[3],
+            "site": device[4],
+            "asset_id": device[5],
+            "asset_name": device[6],
+            "asset_type": device[7]
+        },
+        "latest_telemetry": {
+            "timestamp": str(latest[0]) if latest else None,
+            "temperature": latest[1] if latest else None,
+            "payload": latest[2] if latest else None
+        },
+        "alarms": [
+            {
+                "id": a[0],
+                "parameter": a[1],
+                "alarm_reason": a[2],
+                "severity": a[3],
+                "alarm_status": a[4],
+                "first_seen": str(a[5]),
+                "last_seen": str(a[6])
+            }
+            for a in alarms
+        ]
+    })
+
+
+
+
+@app.route("/device_status_page")
+def device_status_page():
+    if "user" not in session:
+        return redirect("/login")
+
+    return render_template("device_status.html")
+
+
+@app.route("/device_status")
+def device_status():
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        d.id,
+        d.device_eui,
+        d.device_name,
+        d.device_type,
+        d.site,
+        d.asset_id,
+        MAX(s.timestamp) AS last_seen
+    FROM devices d
+    LEFT JOIN sensor_data s
+        ON d.device_eui = s.device_eui
+    WHERE d.is_active = 1
+    GROUP BY
+        d.id,
+        d.device_eui,
+        d.device_name,
+        d.device_type,
+        d.site,
+        d.asset_id
+    ORDER BY d.id DESC
+    """)
+
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    devices = []
+
+    for r in rows:
+        last_seen = r[6]
+
+        if last_seen is None:
+            status = "NEVER_SEEN"
+        else:
+            from datetime import datetime
+            age_seconds = (datetime.now() - last_seen).total_seconds()
+
+            if age_seconds <= 120:
+                status = "ONLINE"
+            elif age_seconds <= 3600:
+                status = "STALE"
+            else:
+                status = "OFFLINE"
+
+        devices.append({
+            "id": r[0],
+            "device_eui": r[1],
+            "device_name": r[2],
+            "device_type": r[3],
+            "site": r[4],
+            "asset_id": r[5],
+            "last_seen": str(last_seen) if last_seen else "",
+            "status": status
+        })
+
+    return jsonify(devices)
+
+
+
+
+@app.route("/dashboard_summary")
+def dashboard_summary():
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT COUNT(*) FROM sites")
+    total_sites = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM devices WHERE is_active = 1")
+    total_devices = cursor.fetchone()[0]
+
+    cursor.execute("""
+    SELECT COUNT(*)
+    FROM active_alarms
+    WHERE alarm_status IN ('OPEN', 'ACKNOWLEDGED')
+    """)
+    active_alarms_count = cursor.fetchone()[0]
+
+    cursor.execute("""
+    SELECT COUNT(DISTINCT device_eui)
+    FROM sensor_data
+    WHERE timestamp >= NOW() - INTERVAL '2 minutes'
+    """)
+    online_devices = cursor.fetchone()[0]
+
+    offline_devices = total_devices - online_devices
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "total_sites": total_sites,
+        "total_devices": total_devices,
+        "online_devices": online_devices,
+        "offline_devices": offline_devices,
+        "active_alarms": active_alarms_count
+    })
+
+
+
+
+
+@app.route("/alarm_history_page")
+def alarm_history_page():
+    if "user" not in session:
+        return redirect("/login")
+
+    return render_template("alarm_history.html")
+
+
+
+@app.route("/alarm_history_full")
+def alarm_history_full():
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        id,
+        device_eui,
+        parameter,
+        alarm_reason,
+        severity,
+        alarm_status,
+        first_seen,
+        last_seen,
+        cleared_at
+    FROM active_alarms
+    ORDER BY id DESC
+    LIMIT 500
+    """)
+
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    data = []
+
+    for r in rows:
+        data.append({
+            "id": r[0],
+            "device_eui": r[1],
+            "parameter": r[2],
+            "alarm_reason": r[3],
+            "severity": r[4],
+            "alarm_status": r[5],
+            "first_seen": str(r[6]),
+            "last_seen": str(r[7]),
+            "cleared_at": str(r[8]) if r[8] else ""
+        })
+
+    return jsonify(data)
+
+
+
+
+@app.route("/active_alarms_page")
+def active_alarms_page():
+
+    if "user" not in session:
+        return redirect("/login")
+
+    return render_template(
+        "active_alarms.html",
+        role=session.get("role", "user")
+    )
+
+
+
 
 
 
@@ -98,8 +846,9 @@ def active_alarms():
         last_seen,
         cleared_at
     FROM active_alarms
-    ORDER BY id DESC
-    LIMIT 100
+    WHERE alarm_status IN ('OPEN','ACKNOWLEDGED')
+    ORDER BY severity DESC,
+        first_seen ASC;
     """)
 
     rows = cursor.fetchall()

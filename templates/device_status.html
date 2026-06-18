@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Device Status</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #111827;
+            color: white;
+            padding: 20px
+        }
+
+        .top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center
+        }
+
+        .cards {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0
+        }
+
+        .card {
+            flex: 1;
+            padding: 20px;
+            border-radius: 8px;
+            background: #1f2937
+        }
+
+        .green {
+            color: #00ff66;
+            font-weight: bold
+        }
+
+        .orange {
+            color: orange;
+            font-weight: bold
+        }
+
+        .red {
+            color: #ff4444;
+            font-weight: bold
+        }
+
+        .gray {
+            color: #aaa;
+            font-weight: bold
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #1f2937;
+            margin-top: 20px
+        }
+
+        th,
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #374151
+        }
+
+        th {
+            background: #111827
+        }
+
+        input,
+        select,
+        button,
+        a {
+            padding: 8px;
+            margin: 5px
+        }
+
+        .btn {
+            background: #2563eb;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px
+        }
+
+        .device-link {
+            color: #60a5fa;
+            text-decoration: none;
+            font-weight: bold
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="top">
+        <h2>📡 Device Status Dashboard</h2>
+        <a href="/" class="btn">Back to Dashboard</a>
+    </div>
+
+    <div class="cards">
+        <div class="card">🟢 Online<br>
+            <h2 id="onlineCount">0</h2>
+        </div>
+        <div class="card">🟠 Stale<br>
+            <h2 id="staleCount">0</h2>
+        </div>
+        <div class="card">🔴 Offline<br>
+            <h2 id="offlineCount">0</h2>
+        </div>
+        <div class="card">⚫ Never Seen<br>
+            <h2 id="neverSeenCount">0</h2>
+        </div>
+    </div>
+
+    <div>
+        <input id="searchBox" placeholder="Search device/site/type" oninput="renderDevices()">
+
+        <select id="statusFilter" onchange="renderDevices()">
+            <option value="">All Status</option>
+            <option value="ONLINE">ONLINE</option>
+            <option value="STALE">STALE</option>
+            <option value="OFFLINE">OFFLINE</option>
+            <option value="NEVER_SEEN">NEVER_SEEN</option>
+        </select>
+
+        <button onclick="downloadCSV()">Export CSV</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Device EUI</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Site</th>
+                <th>Asset ID</th>
+                <th>Last Seen</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="deviceStatusBody"></tbody>
+    </table>
+
+    <script>
+        let allDevices = [];
+
+        async function loadDeviceStatus() {
+            const res = await fetch("/device_status");
+            allDevices = await res.json();
+
+            updateCards();
+            renderDevices();
+        }
+
+        function updateCards() {
+            document.getElementById("onlineCount").innerText =
+                allDevices.filter(d => d.status === "ONLINE").length;
+
+            document.getElementById("staleCount").innerText =
+                allDevices.filter(d => d.status === "STALE").length;
+
+            document.getElementById("offlineCount").innerText =
+                allDevices.filter(d => d.status === "OFFLINE").length;
+
+            document.getElementById("neverSeenCount").innerText =
+                allDevices.filter(d => d.status === "NEVER_SEEN").length;
+        }
+
+        function renderDevices() {
+            const q = document.getElementById("searchBox").value.toLowerCase();
+            const status = document.getElementById("statusFilter").value;
+
+            const body = document.getElementById("deviceStatusBody");
+            body.innerHTML = "";
+
+            allDevices
+                .filter(d =>
+                    !q ||
+                    d.device_eui.toLowerCase().includes(q) ||
+                    d.device_name.toLowerCase().includes(q) ||
+                    d.device_type.toLowerCase().includes(q) ||
+                    d.site.toLowerCase().includes(q)
+                )
+                .filter(d => !status || d.status === status)
+                .forEach(d => {
+                    let cls = "gray";
+                    if (d.status === "ONLINE") cls = "green";
+                    if (d.status === "STALE") cls = "orange";
+                    if (d.status === "OFFLINE") cls = "red";
+
+                    body.innerHTML += `
+            <tr>
+                <td>${d.id}</td>
+                <td>
+                    <a href="/device_details_page/${d.id}" class="device-link">
+                        ${d.device_eui}
+                    </a>
+                </td>
+                <td>${d.device_name}</td>
+                <td>${d.device_type}</td>
+                <td>${d.site}</td>
+                <td>${d.asset_id || "-"}</td>
+                <td>${d.last_seen || "-"}</td>
+                <td class="${cls}">${d.status}</td>
+            </tr>`;
+                });
+        }
+
+        function downloadCSV() {
+            let rows = [["ID", "Device EUI", "Name", "Type", "Site", "Asset ID", "Last Seen", "Status"]];
+
+            allDevices.forEach(d => {
+                rows.push([
+                    d.id,
+                    d.device_eui,
+                    d.device_name,
+                    d.device_type,
+                    d.site,
+                    d.asset_id || "",
+                    d.last_seen || "",
+                    d.status
+                ]);
+            });
+
+            let csv = rows.map(r => r.map(v => `"${v}"`).join(",")).join("\n");
+            let blob = new Blob([csv], { type: "text/csv" });
+            let url = URL.createObjectURL(blob);
+
+            let a = document.createElement("a");
+            a.href = url;
+            a.download = "device_status.csv";
+            a.click();
+        }
+
+        loadDeviceStatus();
+        setInterval(loadDeviceStatus, 10000);
+    </script>
+
+</body>
+
+</html>

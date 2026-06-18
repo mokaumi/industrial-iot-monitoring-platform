@@ -926,6 +926,10 @@ body::after {
                 Active Alarms
             </a>
             <a href="/alarm_history_page" class="admin-btn">Alarm History</a>
+            
+            <a href="/device_status_page" class="admin-btn">
+                Device Status
+            </a>
         
             <a href="/logout" class="logout-btn">Logout</a>
         </div>
@@ -1541,6 +1545,25 @@ body::after {
     let liveIncidentCooldown = 60000; // 1 minute
     let currentAlertDeviceEui = null;
     let currentAssetDevices = [];
+
+
+
+
+
+    async function loadDashboardSummary() {
+            const res = await fetch("/dashboard_summary");
+            const d = await res.json();
+
+            document.getElementById("totalSites").innerText = d.total_sites;
+            document.getElementById("totalDevices").innerText = d.total_devices;
+            document.getElementById("onlineDevices").innerText = d.online_devices;
+            document.getElementById("offlineDevices").innerText = d.offline_devices;
+
+            const alarmSummary = document.getElementById("sumValue3");
+            if (alarmSummary) {
+                alarmSummary.innerText = d.active_alarms;
+            }
+        }
 
 
 
@@ -3046,10 +3069,10 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
         let r = await fetch("/device_status_summary");
         let s = await r.json();
 
-        animateValue("totalSites", s.sites, 0);
-        animateValue("totalDevices", s.devices, 0);
-        animateValue("onlineDevices", s.online, 0);
-        animateValue("offlineDevices", s.offline, 0);
+        // animateValue("totalSites", s.sites, 0);
+        // animateValue("totalDevices", s.devices, 0);
+        // animateValue("onlineDevices", s.online, 0);
+        // animateValue("offlineDevices", s.offline, 0);
     }
 
 
@@ -4261,6 +4284,9 @@ const freqChart = new Chart(document.getElementById("freqChart"), {
     setInterval(loadRecentIncidents, 10000);
     loadActiveAlarmWidget();
     setInterval(loadActiveAlarmWidget, 5000);
+    loadDashboardSummary();
+    setInterval(loadDashboardSummary, 10000);
+    
 
     startDashboard();
 </script>

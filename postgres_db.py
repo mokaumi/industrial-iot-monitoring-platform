@@ -1,6 +1,139 @@
 
 import psycopg2
 
+def update_reported_twin_pg(
+    device_eui,
+    reporting_interval,
+    alarm_enabled
+):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    UPDATE device_twin
+    SET
+        reported_reporting_interval = %s,
+        reported_alarm_enabled = %s,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE device_eui = %s
+    """, (
+        reporting_interval,
+        alarm_enabled,
+        device_eui
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def update_desired_twin_pg(
+    device_eui,
+    reporting_interval,
+    alarm_enabled
+):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    UPDATE device_twin
+    SET
+        desired_reporting_interval = %s,
+        desired_alarm_enabled = %s,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE device_eui = %s
+    """, (
+        reporting_interval,
+        alarm_enabled,
+        device_eui
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+
+
+
+def get_device_twin_pg(device_eui):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT
+        desired_reporting_interval,
+        desired_alarm_enabled,
+        reported_reporting_interval,
+        reported_alarm_enabled
+    FROM device_twin
+    WHERE device_eui = %s
+    """, (device_eui,))
+
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    return row
+
+
+
+
+def create_device_twin_pg(device_eui):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    INSERT INTO device_twin (device_eui)
+    VALUES (%s)
+    ON CONFLICT (device_eui) DO NOTHING
+    """, (device_eui,))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+
+
+
+
+
+def insert_command_response_pg(
+    device_eui,
+    command,
+    status,
+    message,
+    source
+):
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    INSERT INTO command_responses (
+        device_eui,
+        command,
+        status,
+        message,
+        source
+    )
+    VALUES (%s, %s, %s, %s, %s)
+    """, (
+        device_eui,
+        command,
+        status,
+        message,
+        source
+    ))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+
+
+
 
 def acknowledge_active_alarm_pg(alarm_id, acknowledged_by="admin"):
     conn = get_pg_connection()
