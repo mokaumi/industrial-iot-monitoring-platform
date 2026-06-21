@@ -12,7 +12,9 @@ from postgres_db import (
     clear_active_alarm_pg,
     recent_anomaly_exists_pg,
     insert_command_response_pg,
-    update_reported_twin_pg
+    update_reported_twin_pg,
+    insert_gateway_telemetry_pg,
+    insert_gateway_command_response_pg
 )
 
 # from database import get_asset_by_device
@@ -23,6 +25,8 @@ TOPIC = "iot/telemetry"
 NORMALIZED_TOPIC = "iot/normalized"
 COMMAND_RESPONSE_TOPIC = "devices/command_responses"
 TWIN_REPORTED_TOPIC = "devices/twin_reported"
+GATEWAY_TELEMETRY_TOPIC = "gateways/telemetry"
+GATEWAY_COMMAND_RESPONSE_TOPIC = "gateways/command_responses"
 
 
 def on_connect(client, userdata, flags, rc):
@@ -31,7 +35,12 @@ def on_connect(client, userdata, flags, rc):
     client.subscribe(TOPIC)
     client.subscribe(COMMAND_RESPONSE_TOPIC)
     client.subscribe(TWIN_REPORTED_TOPIC)
-
+    client.subscribe(GATEWAY_TELEMETRY_TOPIC)
+    client.subscribe(GATEWAY_COMMAND_RESPONSE_TOPIC)
+    
+    
+    print("Subscribed to:", GATEWAY_COMMAND_RESPONSE_TOPIC)
+    print("Subscribed to:", GATEWAY_TELEMETRY_TOPIC)
     print("Subscribed to:", TOPIC)
     print("Subscribed to:", COMMAND_RESPONSE_TOPIC)
     print("Subscribed to:", TWIN_REPORTED_TOPIC)
@@ -41,6 +50,35 @@ def on_message(client, userdata, msg):
 
     try:
         raw_payload = msg.payload.decode()
+        
+        if msg.topic == GATEWAY_COMMAND_RESPONSE_TOPIC:
+            data = json.loads(raw_payload)
+
+            insert_gateway_command_response_pg(
+                data.get("gateway_eui"),
+                data.get("command"),
+                data.get("status"),
+                data.get("message"),
+                data.get("source")
+            )
+
+            print("Inserted gateway command response into PostgreSQL")
+            return
+        
+        if msg.topic == GATEWAY_TELEMETRY_TOPIC:
+            data = json.loads(raw_payload)
+
+            insert_gateway_telemetry_pg(
+                data.get("gateway_eui"),
+                data.get("cpu_usage"),
+                data.get("memory_usage"),
+                data.get("signal_quality"),
+                data.get("packets_today"),
+                data.get("status")
+            )
+
+            print("Inserted gateway telemetry into PostgreSQL")
+            return
 
         print("RAW MQTT:", raw_payload)
         

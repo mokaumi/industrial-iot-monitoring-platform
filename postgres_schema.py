@@ -134,6 +134,69 @@ CREATE TABLE IF NOT EXISTS device_twin (
 );
 """)
 
+
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS gateways (
+    id SERIAL PRIMARY KEY,
+    gateway_eui TEXT UNIQUE NOT NULL,
+    gateway_name TEXT NOT NULL,
+    gateway_type TEXT,
+    site TEXT,
+    ip_address TEXT,
+    status TEXT DEFAULT 'UNKNOWN',
+    last_seen TIMESTAMP,
+    is_active INTEGER DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+""")
+
+
+
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS gateway_telemetry (
+    id SERIAL PRIMARY KEY,
+    gateway_eui TEXT,
+    cpu_usage REAL,
+    memory_usage REAL,
+    signal_quality REAL,
+    packets_today INTEGER,
+    status TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+""")
+
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS gateway_command_responses (
+    id SERIAL PRIMARY KEY,
+    gateway_eui TEXT,
+    command TEXT,
+    status TEXT,
+    message TEXT,
+    source TEXT,
+    response_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+""")
+
+
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS gateway_alarms (
+    id SERIAL PRIMARY KEY,
+    gateway_eui TEXT,
+    parameter TEXT,
+    severity TEXT,
+    alarm_status TEXT DEFAULT 'OPEN',
+    alarm_reason TEXT,
+    first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    cleared_at TIMESTAMP
+);
+""")
+
+
 conn.commit()
 cursor.close()
 conn.close()

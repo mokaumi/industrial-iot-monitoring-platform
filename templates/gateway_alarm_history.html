@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Gateway Alarm History</title>
+<style>
+body{font-family:Arial;background:#111827;color:white;padding:20px}
+.top{display:flex;justify-content:space-between;align-items:center}
+.card{background:#1f2937;padding:20px;border-radius:8px;margin:15px 0}
+.btn{background:#2563eb;color:white;text-decoration:none;border-radius:5px;padding:10px}
+table{width:100%;border-collapse:collapse;background:#1f2937;margin-top:20px}
+th,td{padding:12px;border-bottom:1px solid #374151}
+th{background:#111827}
+.red{color:#ff4444;font-weight:bold}
+.orange{color:orange;font-weight:bold}
+.green{color:#00ff66;font-weight:bold}
+.gray{color:#aaa;font-weight:bold}
+input,select{padding:8px;margin:5px}
+</style>
+</head>
+<body>
+
+<div class="top">
+    <h2>📜 Gateway Alarm History</h2>
+    <a href="/" class="btn">Back to Dashboard</a>
+</div>
+
+<div class="card">
+    <input id="searchBox" placeholder="Search gateway/parameter/reason" oninput="renderAlarms()">
+
+    <select id="statusFilter" onchange="renderAlarms()">
+        <option value="">All Status</option>
+        <option value="OPEN">OPEN</option>
+        <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
+        <option value="CLEARED">CLEARED</option>
+    </select>
+
+    <select id="severityFilter" onchange="renderAlarms()">
+        <option value="">All Severity</option>
+        <option value="CRITICAL">CRITICAL</option>
+        <option value="WARNING">WARNING</option>
+    </select>
+</div>
+
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Gateway</th>
+                <th>EUI</th>
+                <th>Parameter</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Reason</th>
+                <th>First Seen</th>
+                <th>Last Seen</th>
+                <th>Cleared At</th>
+            </tr>
+        </thead>
+        <tbody id="alarmHistoryBody"></tbody>
+    </table>
+</div>
+
+<script>
+let allAlarms = [];
+
+async function loadGatewayAlarmHistory(){
+    const res = await fetch("/gateway_alarm_history");
+    allAlarms = await res.json();
+    renderAlarms();
+}
+
+function renderAlarms(){
+    const q = document.getElementById("searchBox").value.toLowerCase();
+    const status = document.getElementById("statusFilter").value;
+    const severity = document.getElementById("severityFilter").value;
+
+    const body = document.getElementById("alarmHistoryBody");
+    body.innerHTML = "";
+
+    allAlarms
+        .filter(a =>
+            !q ||
+            (a.gateway_name || "").toLowerCase().includes(q) ||
+            (a.gateway_eui || "").toLowerCase().includes(q) ||
+            (a.parameter || "").toLowerCase().includes(q) ||
+            (a.alarm_reason || "").toLowerCase().includes(q)
+        )
+        .filter(a => !status || a.alarm_status === status)
+        .filter(a => !severity || a.severity === severity)
+        .forEach(a => {
+            let cls = "gray";
+            if(a.severity === "CRITICAL") cls = "red";
+            if(a.severity === "WARNING") cls = "orange";
+            if(a.alarm_status === "CLEARED") cls = "green";
+
+            body.innerHTML += `
+            <tr>
+                <td>${a.id}</td>
+                <td>${a.gateway_name || "-"}</td>
+                <td>${a.gateway_eui}</td>
+                <td>${a.parameter}</td>
+                <td class="${cls}">${a.severity}</td>
+                <td>${a.alarm_status}</td>
+                <td>${a.alarm_reason}</td>
+                <td>${a.first_seen}</td>
+                <td>${a.last_seen}</td>
+                <td>${a.cleared_at || "-"}</td>
+            </tr>`;
+        });
+}
+
+loadGatewayAlarmHistory();
+setInterval(loadGatewayAlarmHistory, 10000);
+</script>
+
+</body>
+</html>

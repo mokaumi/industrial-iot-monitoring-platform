@@ -41,21 +41,529 @@ register_admin_routes(app)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 # ---------------- THREADS ----------------
 # threading.Thread(target=udp_listener, daemon=True).start()
 threading.Thread(target=mqtt_listener, daemon=True).start()
+
+@app.route("/gateway_alarm_history_page")
+def gateway_alarm_history_page():
+    if "user" not in session:
+        return redirect("/login")
+
+    return render_template("gateway_alarm_history.html")
+
+
+
+
+@app.route("/gateway_alarm_history")
+def gateway_alarm_history():
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            ga.id,
+            ga.gateway_eui,
+            g.gateway_name,
+            ga.parameter,
+            ga.severity,
+            ga.alarm_status,
+            ga.alarm_reason,
+            ga.first_seen,
+            ga.last_seen,
+            ga.cleared_at
+        FROM gateway_alarms ga
+        LEFT JOIN gateways g
+            ON ga.gateway_eui = g.gateway_eui
+        ORDER BY ga.id DESC
+        LIMIT 100
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "gateway_eui": r[1],
+            "gateway_name": r[2],
+            "parameter": r[3],
+            "severity": r[4],
+            "alarm_status": r[5],
+            "alarm_reason": r[6],
+            "first_seen": str(r[7]),
+            "last_seen": str(r[8]),
+            "cleared_at": str(r[9]) if r[9] else ""
+        }
+        for r in rows
+    ])
+
+
+@app.route("/ack_gateway_alarm/<int:alarm_id>", methods=["POST"])
+def ack_gateway_alarm(alarm_id):
+    if "user" not in session:
+        return jsonify({"success": False, "message": "Not logged in"}), 401
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE gateway_alarms
+        SET alarm_status = 'ACKNOWLEDGED'
+        WHERE id = %s
+          AND alarm_status = 'OPEN'
+    """, (alarm_id,))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": "Gateway alarm acknowledged"
+    })
+
+
+
+@app.route("/gateway_alarm_summary/<int:gateway_id>")
+def gateway_alarm_summary(gateway_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT gateway_eui
+        FROM gateways
+        WHERE id = %s
+    """, (gateway_id,))
+
+    gateway = cur.fetchone()
+
+    if not gateway:
+        cur.close()
+        conn.close()
+        return jsonify({"total": 0, "critical": 0, "warning": 0})
+
+    gateway_eui = gateway[0]
+
+    cur.execute("""
+        SELECT
+            COUNT(*),
+            COUNT(*) FILTER (WHERE severity = 'CRITICAL'),
+            COUNT(*) FILTER (WHERE severity = 'WARNING')
+        FROM gateway_alarms
+        WHERE gateway_eui = %s
+          AND alarm_status = 'OPEN'
+    """, (gateway_eui,))
+
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "total": row[0],
+        "critical": row[1],
+        "warning": row[2]
+    })
+
+
+
+
+
+
+
+@app.route("/gateway_active_alarms/<int:gateway_id>")
+def gateway_active_alarms(gateway_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT gateway_eui
+        FROM gateways
+        WHERE id = %s
+    """, (gateway_id,))
+
+    gateway = cur.fetchone()
+
+    if not gateway:
+        cur.close()
+        conn.close()
+        return jsonify([])
+
+    gateway_eui = gateway[0]
+
+    cur.execute("""
+        SELECT
+            id,
+            parameter,
+            severity,
+            alarm_status,
+            alarm_reason,
+            first_seen,
+            last_seen
+        FROM gateway_alarms
+        WHERE gateway_eui = %s
+          AND alarm_status IN ('OPEN','ACKNOWLEDGED')
+        ORDER BY id DESC
+    """, (gateway_eui,))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "parameter": r[1],
+            "severity": r[2],
+            "alarm_status": r[3],
+            "alarm_reason": r[4],
+            "first_seen": str(r[5]),
+            "last_seen": str(r[6])
+        }
+        for r in rows
+    ])
+
+
+
+
+@app.route("/gateway_command_history/<int:gateway_id>")
+def gateway_command_history(gateway_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT gateway_eui
+        FROM gateways
+        WHERE id = %s
+    """, (gateway_id,))
+
+    gateway = cur.fetchone()
+
+    if not gateway:
+        cur.close()
+        conn.close()
+        return jsonify([])
+
+    gateway_eui = gateway[0]
+
+    cur.execute("""
+        SELECT
+            command,
+            status,
+            message,
+            source,
+            response_time
+        FROM gateway_command_responses
+        WHERE gateway_eui = %s
+        ORDER BY id DESC
+        LIMIT 10
+    """, (gateway_eui,))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "command": r[0],
+            "status": r[1],
+            "message": r[2],
+            "source": r[3],
+            "response_time": str(r[4])
+        }
+        for r in rows
+    ])
+
+
+
+@app.route("/send_gateway_command/<int:gateway_id>", methods=["POST"])
+def send_gateway_command(gateway_id):
+    data = request.get_json()
+    command = data.get("command")
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT gateway_eui, gateway_name
+        FROM gateways
+        WHERE id = %s
+    """, (gateway_id,))
+
+    gateway = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if not gateway:
+        return jsonify({
+            "success": False,
+            "message": "Gateway not found"
+        }), 404
+
+    gateway_eui = gateway[0]
+    gateway_name = gateway[1]
+
+    payload = {
+        "gateway_eui": gateway_eui,
+        "gateway_name": gateway_name,
+        "command": command,
+        "source": "dashboard"
+    }
+
+    topic = f"gateways/{gateway_eui}/commands"
+
+    publish.single(
+        topic,
+        payload=json.dumps(payload),
+        hostname="mosquitto",
+        port=1883
+    )
+
+    print(f"GATEWAY COMMAND PUBLISHED: {topic} -> {payload}")
+
+    return jsonify({
+        "success": True,
+        "message": f"{command} command sent to {gateway_name}",
+        "topic": topic
+    })
+
+
+
+
+@app.route("/gateway_health/<int:gateway_id>")
+def gateway_health(gateway_id):
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT gateway_eui
+    FROM gateways
+    WHERE id = %s
+    """, (gateway_id,))
+
+    row = cur.fetchone()
+
+    if not row:
+        return jsonify({"error": "Gateway not found"}), 404
+
+    gateway_eui = row[0]
+
+    cur.execute("""
+    SELECT
+        cpu_usage,
+        memory_usage,
+        signal_quality,
+        packets_today,
+        status,
+        timestamp
+    FROM gateway_telemetry
+    WHERE gateway_eui = %s
+    ORDER BY timestamp DESC
+    LIMIT 1
+    """, (gateway_eui,))
+
+    data = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if not data:
+        return jsonify({
+            "status": "UNKNOWN"
+        })
+
+    return jsonify({
+        "cpu_usage": data[0],
+        "memory_usage": data[1],
+        "signal_quality": data[2],
+        "packets_today": data[3],
+        "status": data[4],
+        "last_seen": str(data[5])
+    })
+
+
+
+
+
+
+@app.route("/gateway_devices/<int:gateway_id>")
+def gateway_devices(gateway_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT
+        id,
+        device_eui,
+        device_name,
+        device_type,
+        site,
+        is_active
+    FROM devices
+    WHERE gateway_id = %s
+    ORDER BY id
+    """, (gateway_id,))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "device_eui": r[1],
+            "device_name": r[2],
+            "device_type": r[3],
+            "site": r[4],
+            "is_active": r[5]
+        }
+        for r in rows
+    ])
+
+
+
+
+
+
+@app.route("/gateway_details_page/<int:gateway_id>")
+def gateway_details_page(gateway_id):
+    if "user" not in session:
+        return redirect("/login")
+
+    return render_template("gateway_details.html", gateway_id=gateway_id)
+
+
+
+
+@app.route("/gateway_details/<int:gateway_id>")
+def gateway_details(gateway_id):
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT
+        g.id,
+        g.gateway_name,
+        g.gateway_eui,
+        g.status,
+        COUNT(d.id)
+    FROM gateways g
+    LEFT JOIN devices d
+        ON d.gateway_id = g.id
+    WHERE g.id = %s
+    GROUP BY g.id
+    """, (gateway_id,))
+
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if not row:
+        return jsonify({"error":"Gateway not found"}), 404
+
+    return jsonify({
+        "id": row[0],
+        "gateway_name": row[1],
+        "gateway_eui": row[2],
+        "status": row[3],
+        "connected_devices": row[4]
+    })
+
+
+
+
+
+@app.route("/gateway_registry_page")
+def gateway_registry_page():
+    if "user" not in session:
+        return redirect("/login")
+
+    return render_template("gateway_registry.html")
+
+
+
+
+
+
+@app.route("/gateways_registry", methods=["POST"])
+def add_gateway_registry():
+    data = request.get_json()
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    INSERT INTO gateways (
+        gateway_eui,
+        gateway_name,
+        gateway_type,
+        site,
+        ip_address
+    )
+    VALUES (%s,%s,%s,%s,%s)
+    RETURNING id
+    """, (
+        data.get("gateway_eui"),
+        data.get("gateway_name"),
+        data.get("gateway_type"),
+        data.get("site"),
+        data.get("ip_address")
+    ))
+
+    gateway_id = cur.fetchone()[0]
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "message": "Gateway added successfully",
+        "gateway_id": gateway_id
+    })
+
+
+
+
+
+@app.route("/gateways_registry", methods=["GET"])
+def get_gateways_registry():
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT id, gateway_eui, gateway_name, gateway_type, site, ip_address, status, last_seen, is_active
+    FROM gateways
+    ORDER BY id DESC
+    """)
+
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "gateway_eui": r[1],
+            "gateway_name": r[2],
+            "gateway_type": r[3],
+            "site": r[4],
+            "ip_address": r[5],
+            "status": r[6],
+            "last_seen": str(r[7]) if r[7] else "",
+            "is_active": r[8]
+        }
+        for r in rows
+    ])
 
 
 

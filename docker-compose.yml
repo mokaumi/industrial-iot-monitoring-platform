@@ -61,6 +61,15 @@ services:
       - postgres
       - mosquitto
 
+
+
+  gateway_simulator:
+    build: .
+    container_name: iot_gateway_simulator
+    command: python3 -u gateway_simulator.py
+    depends_on:
+      - mosquitto
+
 volumes:
   postgres_data:
 

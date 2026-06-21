@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Gateway Details</title>
+<style>
+body{font-family:Arial;background:#111827;color:white;padding:20px}
+.top{display:flex;justify-content:space-between;align-items:center}
+.card{background:#1f2937;padding:20px;border-radius:8px;margin:15px 0}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}
+.value{font-size:28px;font-weight:bold}
+.btn{background:#2563eb;color:white;text-decoration:none;border-radius:5px;padding:10px}
+table{width:100%;border-collapse:collapse;background:#1f2937;margin-top:20px}
+th,td{padding:12px;border-bottom:1px solid #374151}
+th{background:#111827}
+.green{color:#00ff66;font-weight:bold}
+.red{color:#ff4444;font-weight:bold}
+</style>
+</head>
+<body>
+
+<div class="top">
+    <h2>🌐 Gateway Details</h2>
+    <a href="/gateway_registry_page" class="btn">Back to Gateways</a>
+</div>
+
+<div class="card">
+    <h3 id="gatewayName">Loading...</h3>
+    <p><strong>EUI:</strong> <span id="gatewayEui">--</span></p>
+    <p><strong>Status:</strong> <span id="gatewayStatus">--</span></p>
+</div>
+
+
+<div class="card">
+    <h3>📡 Gateway Monitoring</h3>
+
+    <div class="grid">
+        <div>
+            <strong>Status</strong><br>
+            <span id="gwStatus">--</span>
+        </div>
+
+        <div>
+            <strong>Packets Today</strong><br>
+            <span id="gwPackets">--</span>
+        </div>
+
+        <div>
+            <strong>Signal Quality</strong><br>
+            <span id="gwSignal">--</span>
+        </div>
+
+        <div>
+            <strong>CPU Usage</strong><br>
+            <span id="gwCpu">--</span>
+        </div>
+
+        <div>
+            <strong>Memory Usage</strong><br>
+            <span id="gwMemory">--</span>
+        </div>
+
+        <div>
+            <strong>Last Seen</strong><br>
+            <span id="gwLastSeen">--</span>
+        </div>
+    </div>
+</div>
+
+
+
+<div class="card">
+    <h3>🛰 Gateway Commands</h3>
+
+    <button onclick="sendGatewayCommand('ping')">Ping Gateway</button>
+    <button onclick="sendGatewayCommand('get_status')">Get Status</button>
+    <button onclick="sendGatewayCommand('restart')">Restart Gateway</button>
+    <button onclick="sendGatewayCommand('sync_devices')">Sync Devices</button>
+
+    <p id="gatewayCommandResult"></p>
+</div>
+
+
+<div class="card">
+    <h3>🚨 Gateway Active Alarms</h3>
+
+    <div id="gatewayActiveAlarms">
+        Loading alarms...
+    </div>
+</div>
+
+
+
+<div class="card">
+    <h3>📊 Gateway Alarm Analytics</h3>
+
+    <div class="grid">
+        <div>
+            <strong>Total Alarms</strong><br>
+            <span class="value" id="gwAlarmTotal">0</span>
+        </div>
+
+        <div>
+            <strong>Critical</strong><br>
+            <span class="value red" id="gwAlarmCritical">0</span>
+        </div>
+
+        <div>
+            <strong>Warning</strong><br>
+            <span class="value" style="color:orange" id="gwAlarmWarning">0</span>
+        </div>
+    </div>
+</div>
+
+
+<div class="card">
+    <h3>📜 Gateway Command History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Command</th>
+                <th>Status</th>
+                <th>Message</th>
+                <th>Source</th>
+            </tr>
+        </thead>
+        <tbody id="gatewayCommandHistoryBody"></tbody>
+    </table>
+</div>
+
+
+
+<div class="grid">
+    <div class="card">Connected Devices<br><span class="value" id="connectedDevices">--</span></div>
+    <div class="card">Online Devices<br><span class="value" id="onlineDevices">--</span></div>
+    <div class="card">Offline Devices<br><span class="value" id="offlineDevices">--</span></div>
+    <div class="card">Gateway Health<br><span class="value" id="gatewayHealth">--</span></div>
+</div>
+
+<div class="card">
+    <h3>📡 Connected Devices</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Device EUI</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Site</th>
+                <th>Active</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="gatewayDevicesBody"></tbody>
+    </table>
+</div>
+
+<script>
+
+const gatewayId = Number("{{ gateway_id }}");
+
+
+
+
+
+
+async function loadGatewayAlarmSummary(){
+
+    const res =
+        await fetch(`/gateway_alarm_summary/${gatewayId}`);
+
+    const data = await res.json();
+
+    document.getElementById("gwAlarmTotal")
+        .innerText = data.total;
+
+    document.getElementById("gwAlarmCritical")
+        .innerText = data.critical;
+
+    document.getElementById("gwAlarmWarning")
+        .innerText = data.warning;
+}
+
+
+
+async function ackGatewayAlarm(alarmId){
+
+    const res = await fetch(
+        `/ack_gateway_alarm/${alarmId}`,
+        {
+            method: "POST"
+        }
+    );
+
+    const result = await res.json();
+
+    alert(result.message);
+
+    loadGatewayActiveAlarms();
+    loadGatewayAlarmSummary();
+}
+
+
+
+
+
+async function loadGatewayActiveAlarms(){
+
+    const res =
+        await fetch(`/gateway_active_alarms/${gatewayId}`);
+
+    const alarms = await res.json();
+
+    const div =
+        document.getElementById("gatewayActiveAlarms");
+
+    if(alarms.length === 0){
+
+        div.innerHTML =
+            "<span class='green'>No active alarms</span>";
+
+        return;
+    }
+
+    let html = "";
+
+    alarms.forEach(a => {
+
+        html += `
+        <div style="
+            margin-bottom:12px;
+            padding:12px;
+            border-bottom:1px solid #374151;
+        ">
+            <strong>${a.parameter}</strong>
+            (${a.severity})<br>
+
+            Status: ${a.alarm_status}<br>
+
+            ${a.alarm_reason}<br>
+
+            Last Seen:
+            ${a.last_seen}<br><br>
+            
+
+            <button onclick="ackGatewayAlarm(${a.id})">
+                ACK
+            </button>
+        </div>`;
+    });
+    div.innerHTML = html;
+}
+
+async function loadGatewayCommandHistory(){
+    const res = await fetch(`/gateway_command_history/${gatewayId}`);
+    const rows = await res.json();
+
+    const body = document.getElementById("gatewayCommandHistoryBody");
+    body.innerHTML = "";
+
+    if(rows.length === 0){
+        body.innerHTML = `
+            <tr>
+                <td colspan="5">No gateway command history yet</td>
+            </tr>`;
+        return;
+    }
+
+    rows.forEach(r => {
+        body.innerHTML += `
+        <tr>
+            <td>${r.response_time}</td>
+            <td>${r.command}</td>
+            <td>${r.status}</td>
+            <td>${r.message}</td>
+            <td>${r.source}</td>
+        </tr>`;
+    });
+}
+
+
+async function sendGatewayCommand(command){
+    const res = await fetch(`/send_gateway_command/${gatewayId}`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({command: command})
+    });
+
+    const result = await res.json();
+
+    document.getElementById("gatewayCommandResult").innerText =
+        result.message || "Command sent";
+
+    await loadGatewayCommandHistory();
+}
+
+
+
+async function loadGatewayHealth() {
+
+    const res = await fetch(`/gateway_health/${gatewayId}`);
+    const data = await res.json();
+
+    document.getElementById("gwStatus").innerText =
+        data.status || "--";
+
+    document.getElementById("gwPackets").innerText =
+        data.packets_today || "--";
+
+    document.getElementById("gwSignal").innerText =
+        (data.signal_quality ?? "--") + "%";
+
+    document.getElementById("gwCpu").innerText =
+        (data.cpu_usage ?? "--") + "%";
+
+    document.getElementById("gwMemory").innerText =
+        (data.memory_usage ?? "--") + "%";
+
+    document.getElementById("gwLastSeen").innerText =
+        data.last_seen || "--";
+}
+
+
+
+async function loadGatewayDetails(){
+    const res = await fetch(`/gateway_details/${gatewayId}`);
+    const g = await res.json();
+
+    document.getElementById("gatewayName").innerText = g.gateway_name;
+    document.getElementById("gatewayEui").innerText = g.gateway_eui;
+    document.getElementById("gatewayStatus").innerText = g.status;
+    document.getElementById("connectedDevices").innerText = g.connected_devices;
+}
+
+async function loadGatewayDevices(){
+    const res = await fetch(`/gateway_devices/${gatewayId}`);
+    const devices = await res.json();
+
+    const body = document.getElementById("gatewayDevicesBody");
+    body.innerHTML = "";
+
+    let online = 0;
+    let offline = 0;
+
+    devices.forEach(d => {
+        if(d.is_active) online++;
+        else offline++;
+
+        body.innerHTML += `
+        <tr>
+            <td>${d.id}</td>
+            <td>${d.device_eui}</td>
+            <td>${d.device_name}</td>
+            <td>${d.device_type}</td>
+            <td>${d.site || "-"}</td>
+            <td class="${d.is_active ? "green" : "red"}">
+                ${d.is_active ? "Active" : "Inactive"}
+            </td>
+            <td>
+                <a class="btn" href="/device_details_page/${d.id}">
+                    View
+                </a>
+            </td>
+        </tr>`;
+    });
+
+    document.getElementById("onlineDevices").innerText = online;
+    document.getElementById("offlineDevices").innerText = offline;
+
+    const health = devices.length > 0
+        ? Math.round((online / devices.length) * 100)
+        : 0;
+
+    document.getElementById("gatewayHealth").innerText = health + "%";
+}
+
+loadGatewayDetails();
+loadGatewayDevices();
+loadGatewayHealth();
+loadGatewayCommandHistory();
+loadGatewayActiveAlarms();
+loadGatewayAlarmSummary();
+
+setInterval(() => {
+    loadGatewayDetails();
+    loadGatewayDevices();
+    loadGatewayHealth();
+    loadGatewayCommandHistory();
+    loadGatewayActiveAlarms();
+    loadGatewayAlarmSummary();
+}, 10000);
+</script>
+
+</body>
+</html>

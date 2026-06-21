@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Gateway Registry</title>
+<style>
+body{font-family:Arial;background:#111827;color:white;padding:20px}
+.top{display:flex;justify-content:space-between;align-items:center}
+.card{background:#1f2937;padding:20px;border-radius:8px;margin:15px 0}
+input,select,button,a{padding:8px;margin:5px}
+button{cursor:pointer}
+.btn{background:#2563eb;color:white;text-decoration:none;border-radius:5px}
+table{width:100%;border-collapse:collapse;background:#1f2937;margin-top:20px}
+th,td{padding:12px;border-bottom:1px solid #374151}
+th{background:#111827}
+.active{color:#00ff66;font-weight:bold}
+.inactive{color:#ff4444;font-weight:bold}
+</style>
+</head>
+<body>
+
+<div class="top">
+    <h2>🌐 Gateway Registry</h2>
+    <a href="/" class="btn">Back to Dashboard</a>
+</div>
+
+<div class="card">
+    <h3>Add Gateway</h3>
+
+    <input id="gatewayEui" placeholder="Gateway EUI">
+    <input id="gatewayName" placeholder="Gateway Name">
+    <input id="gatewayType" placeholder="Gateway Type">
+    <input id="gatewaySite" placeholder="Site">
+    <input id="gatewayIp" placeholder="IP Address">
+
+    <button onclick="addGateway()">Add Gateway</button>
+
+    <p id="gatewayResult"></p>
+</div>
+
+<div class="card">
+    <h3>Registered Gateways</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Gateway EUI</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Site</th>
+                <th>IP Address</th>
+                <th>Status</th>
+                <th>Last Seen</th>
+                <th>Active</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="gatewayTableBody"></tbody>
+    </table>
+</div>
+
+<script>
+async function loadGateways(){
+    const res = await fetch("/gateways_registry");
+    const gateways = await res.json();
+
+    const body = document.getElementById("gatewayTableBody");
+    body.innerHTML = "";
+
+    gateways.forEach(g => {
+        body.innerHTML += `
+        <tr>
+            <td>${g.id}</td>
+            <td>${g.gateway_eui}</td>
+            <td>${g.gateway_name}</td>
+            <td>${g.gateway_type || "-"}</td>
+            <td>${g.site || "-"}</td>
+            <td>${g.ip_address || "-"}</td>
+            <td>${g.status}</td>
+            <td>${g.last_seen || "-"}</td>
+            <td class="${g.is_active ? "active" : "inactive"}">
+                ${g.is_active ? "Active" : "Inactive"}
+            </td>
+            <td>
+            <a class="btn" href="/gateway_details_page/${g.id}">
+                View
+            </a>
+            </td>
+        </tr>`;
+    });
+}
+
+async function addGateway(){
+    const payload = {
+        gateway_eui: document.getElementById("gatewayEui").value,
+        gateway_name: document.getElementById("gatewayName").value,
+        gateway_type: document.getElementById("gatewayType").value,
+        site: document.getElementById("gatewaySite").value,
+        ip_address: document.getElementById("gatewayIp").value
+    };
+
+    const res = await fetch("/gateways_registry", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(payload)
+    });
+
+    const result = await res.json();
+
+    document.getElementById("gatewayResult").innerText =
+        result.message || result.error || "Done";
+
+    await loadGateways();
+}
+
+loadGateways();
+setInterval(loadGateways, 10000);
+</script>
+
+</body>
+</html>

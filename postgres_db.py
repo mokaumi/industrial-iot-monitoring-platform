@@ -1,6 +1,208 @@
 
 import psycopg2
 
+
+
+
+def clear_gateway_alarm_pg(gateway_eui, parameter):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    UPDATE gateway_alarms
+    SET alarm_status = 'CLEARED',
+        cleared_at = CURRENT_TIMESTAMP
+    WHERE gateway_eui = %s
+      AND parameter = %s
+      AND alarm_status IN ('OPEN', 'ACKNOWLEDGED')
+    """, (gateway_eui, parameter))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+
+
+def create_or_update_gateway_alarm_pg(
+    gateway_eui,
+    parameter,
+    severity,
+    reason
+):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT id
+    FROM gateway_alarms
+    WHERE gateway_eui = %s
+      AND parameter = %s
+      AND alarm_status IN ('OPEN', 'ACKNOWLEDGED')
+    """, (gateway_eui, parameter))
+
+    row = cur.fetchone()
+
+    if row:
+        cur.execute("""
+        UPDATE gateway_alarms
+        SET last_seen = CURRENT_TIMESTAMP,
+            alarm_reason = %s,
+            severity = %s
+        WHERE id = %s
+        """, (reason, severity, row[0]))
+    else:
+        cur.execute("""
+        INSERT INTO gateway_alarms (
+            gateway_eui,
+            parameter,
+            severity,
+            alarm_status,
+            alarm_reason
+        )
+        VALUES (%s,%s,%s,'OPEN',%s)
+        """, (gateway_eui, parameter, severity, reason))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+
+
+def insert_gateway_command_response_pg(
+    gateway_eui,
+    command,
+    status,
+    message,
+    source
+):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    INSERT INTO gateway_command_responses (
+        gateway_eui,
+        command,
+        status,
+        message,
+        source
+    )
+    VALUES (%s,%s,%s,%s,%s)
+    """, (
+        gateway_eui,
+        command,
+        status,
+        message,
+        source
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+
+
+def insert_gateway_telemetry_pg(
+    gateway_eui,
+    cpu_usage,
+    memory_usage,
+    signal_quality,
+    packets_today,
+    status
+):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    INSERT INTO gateway_telemetry (
+        gateway_eui,
+        cpu_usage,
+        memory_usage,
+        signal_quality,
+        packets_today,
+        status
+    )
+    VALUES (%s,%s,%s,%s,%s,%s)
+    """, (
+        gateway_eui,
+        cpu_usage,
+        memory_usage,
+        signal_quality,
+        packets_today,
+        status
+    ))
+
+    conn.commit()
+
+    # --------------------------
+    # Gateway Alarm Rules
+    # --------------------------
+
+    # CPU Alarm
+    if cpu_usage >= 90:
+        create_or_update_gateway_alarm_pg(
+            gateway_eui,
+            "cpu_usage",
+            "CRITICAL",
+            f"CPU usage above threshold: {cpu_usage}%"
+        )
+    else:
+        clear_gateway_alarm_pg(
+            gateway_eui,
+            "cpu_usage"
+        )
+
+    # Memory Alarm
+    if memory_usage >= 90:
+        create_or_update_gateway_alarm_pg(
+            gateway_eui,
+            "memory_usage",
+            "CRITICAL",
+            f"Memory usage above threshold: {memory_usage}%"
+        )
+    else:
+        clear_gateway_alarm_pg(
+            gateway_eui,
+            "memory_usage"
+        )
+
+    # Signal Quality Alarm
+    if signal_quality < 50:
+        create_or_update_gateway_alarm_pg(
+            gateway_eui,
+            "signal_quality",
+            "WARNING",
+            f"Signal quality below threshold: {signal_quality}%"
+        )
+    else:
+        clear_gateway_alarm_pg(
+            gateway_eui,
+            "signal_quality"
+        )
+
+    # Gateway Offline Alarm
+    if status != "ONLINE":
+        create_or_update_gateway_alarm_pg(
+            gateway_eui,
+            "gateway_status",
+            "CRITICAL",
+            f"Gateway status is {status}"
+        )
+    else:
+        clear_gateway_alarm_pg(
+            gateway_eui,
+            "gateway_status"
+        )
+
+    cur.close()
+    conn.close()
+
+
+
+
+
 def update_reported_twin_pg(
     device_eui,
     reporting_interval,
