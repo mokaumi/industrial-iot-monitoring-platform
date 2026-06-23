@@ -27,6 +27,16 @@ services:
       - postgres
       - mosquitto
 
+  gateway_offline_worker:
+    build: .
+    container_name: iot_gateway_offline_worker
+    command: python3 -u gateway_offline_worker.py
+    depends_on:
+      - postgres
+
+
+
+
   mqtt_subscriber:
     build: .
     container_name: iot_mqtt_subscriber
@@ -70,8 +80,11 @@ services:
     depends_on:
       - mosquitto
 
+
+  
+
 volumes:
   postgres_data:
 
 
-  
+

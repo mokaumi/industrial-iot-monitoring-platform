@@ -3,24 +3,105 @@ import psycopg2
 
 
 
+def check_gateway_offline_pg(timeout_minutes=2):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    UPDATE gateways
+    SET status = 'OFFLINE'
+    WHERE last_seen < NOW() - (%s || ' minutes')::interval
+      AND status != 'OFFLINE'
+      AND is_active = 1
+    """, (timeout_minutes,))
+
+    cur.execute("""
+    INSERT INTO gateway_alarms (
+        gateway_eui,
+        parameter,
+        severity,
+        alarm_status,
+        alarm_reason
+    )
+    SELECT
+        gateway_eui,
+        'gateway_status',
+        'CRITICAL',
+        'OPEN',
+        'Gateway offline: no telemetry received'
+    FROM gateways
+    WHERE status = 'OFFLINE'
+      AND is_active = 1
+      AND NOT EXISTS (
+          SELECT 1
+          FROM gateway_alarms ga
+          WHERE ga.gateway_eui = gateways.gateway_eui
+            AND ga.parameter = 'gateway_status'
+            AND ga.alarm_status IN ('OPEN','ACKNOWLEDGED')
+      )
+    """)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+
+def calculate_gateway_status(cpu_usage, memory_usage, signal_quality, raw_status):
+    if raw_status != "ONLINE":
+        return "OFFLINE"
+
+    if cpu_usage is None or memory_usage is None or signal_quality is None:
+        return "UNKNOWN"
+
+    if cpu_usage >= 90:
+        return "DEGRADED"
+
+    if memory_usage >= 90:
+        return "DEGRADED"
+
+    if signal_quality < 50:
+        return "DEGRADED"
+
+    return "ONLINE"
+
 
 def clear_gateway_alarm_pg(gateway_eui, parameter):
     conn = get_pg_connection()
     cur = conn.cursor()
 
     cur.execute("""
-    UPDATE gateway_alarms
-    SET alarm_status = 'CLEARED',
-        cleared_at = CURRENT_TIMESTAMP
+    SELECT id
+    FROM gateway_alarms
     WHERE gateway_eui = %s
       AND parameter = %s
       AND alarm_status IN ('OPEN', 'ACKNOWLEDGED')
+    LIMIT 1
     """, (gateway_eui, parameter))
+
+    alarm = cur.fetchone()
+
+    if not alarm:
+        cur.close()
+        conn.close()
+        return
+
+    cur.execute("""
+    UPDATE gateway_alarms
+    SET alarm_status = 'CLEARED',
+        cleared_at = CURRENT_TIMESTAMP
+    WHERE id = %s
+    """, (alarm[0],))
 
     conn.commit()
     cur.close()
     conn.close()
 
+    log_gateway_event_pg(
+        gateway_eui,
+        "ALARM_CLEARED",
+        f"{parameter} alarm cleared"
+    )
 
 
 
@@ -62,10 +143,45 @@ def create_or_update_gateway_alarm_pg(
         )
         VALUES (%s,%s,%s,'OPEN',%s)
         """, (gateway_eui, parameter, severity, reason))
+        log_gateway_event_pg(
+            gateway_eui,
+            "ALARM_RAISED",
+            reason
+        )
 
     conn.commit()
     cur.close()
     conn.close()
+
+
+
+
+def log_gateway_event_pg(
+    gateway_eui,
+    event_type,
+    event_message
+):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    INSERT INTO gateway_events(
+        gateway_eui,
+        event_type,
+        event_message
+    )
+    VALUES (%s,%s,%s)
+    """, (
+        gateway_eui,
+        event_type,
+        event_message
+    ))
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
 
 
 
@@ -112,9 +228,18 @@ def insert_gateway_telemetry_pg(
     packets_today,
     status
 ):
+
+    calculated_status = calculate_gateway_status(
+        cpu_usage,
+        memory_usage,
+        signal_quality,
+        status
+    )
+
     conn = get_pg_connection()
     cur = conn.cursor()
 
+    # Save telemetry
     cur.execute("""
     INSERT INTO gateway_telemetry (
         gateway_eui,
@@ -131,14 +256,84 @@ def insert_gateway_telemetry_pg(
         memory_usage,
         signal_quality,
         packets_today,
-        status
+        calculated_status
     ))
 
-    conn.commit()
+    # Update gateway master record
+        # Insert telemetry
+    cur.execute("""
+    INSERT INTO gateway_telemetry (
+        gateway_eui,
+        cpu_usage,
+        memory_usage,
+        signal_quality,
+        packets_today,
+        status
+    )
+    VALUES (%s,%s,%s,%s,%s,%s)
+    """, (
+        gateway_eui,
+        cpu_usage,
+        memory_usage,
+        signal_quality,
+        packets_today,
+        calculated_status
+    ))
 
+    # Get previous gateway status
+    cur.execute("""
+    SELECT status
+    FROM gateways
+    WHERE gateway_eui=%s
+    """, (gateway_eui,))
+
+    old = cur.fetchone()
+    old_status = old[0] if old else None
+
+    # Update gateway record
+    if old_status == "OFFLINE" and calculated_status != "OFFLINE":
+
+        cur.execute("""
+        UPDATE gateways
+        SET status=%s,
+            last_seen=CURRENT_TIMESTAMP,
+            online_since=CURRENT_TIMESTAMP
+        WHERE gateway_eui=%s
+        """, (
+            calculated_status,
+            gateway_eui
+        ))
+
+    else:
+
+        cur.execute("""
+        UPDATE gateways
+        SET status=%s,
+            last_seen=CURRENT_TIMESTAMP
+        WHERE gateway_eui=%s
+        """, (
+            calculated_status,
+            gateway_eui
+        ))
+        
+        
+        
+        
+    if old_status and old_status != calculated_status:
+
+        log_gateway_event_pg(
+            gateway_eui,
+            "STATUS_CHANGE",
+            f"Gateway changed from "
+            f"{old_status} to "
+            f"{calculated_status}"
+        )
+    conn.commit()
     # --------------------------
     # Gateway Alarm Rules
     # --------------------------
+
+    
 
     # CPU Alarm
     if cpu_usage >= 90:
@@ -183,7 +378,7 @@ def insert_gateway_telemetry_pg(
         )
 
     # Gateway Offline Alarm
-    if status != "ONLINE":
+    if calculated_status == "OFFLINE":
         create_or_update_gateway_alarm_pg(
             gateway_eui,
             "gateway_status",

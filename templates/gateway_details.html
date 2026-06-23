@@ -15,6 +15,7 @@ th{background:#111827}
 .green{color:#00ff66;font-weight:bold}
 .red{color:#ff4444;font-weight:bold}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -129,6 +130,15 @@ th{background:#111827}
     </table>
 </div>
 
+<div class="card">
+    <h3>🕘 Gateway Event Timeline</h3>
+
+    <div id="gatewayEventTimeline">
+        Loading events...
+    </div>
+</div>
+
+
 
 
 <div class="grid">
@@ -136,7 +146,22 @@ th{background:#111827}
     <div class="card">Online Devices<br><span class="value" id="onlineDevices">--</span></div>
     <div class="card">Offline Devices<br><span class="value" id="offlineDevices">--</span></div>
     <div class="card">Gateway Health<br><span class="value" id="gatewayHealth">--</span></div>
+    <div class="card">Gateway Availability<br><span class="value" id="gatewayAvailability">--</span></div>
+    <div class="card">Gateway Uptime<br><span class="value" id="gatewayUptime">--</span></div>
 </div>
+
+
+<div class="card">
+    <h3>📈 Gateway Performance Trends</h3><canvas id="gatewayPerformanceChart" height="100"></canvas>
+</div>
+
+<div class="card">
+    <h3>📦 Gateway Traffic Trend</h3>
+
+    <canvas id="gatewayTrafficChart" height="100">
+    </canvas>
+</div>
+
 
 <div class="card">
     <h3>📡 Connected Devices</h3>
@@ -163,6 +188,220 @@ const gatewayId = Number("{{ gateway_id }}");
 
 
 
+
+let gatewayPerformanceChart = null;
+
+let gatewayTrafficChart = null;
+
+
+
+
+async function loadGatewayEvents(){
+    const res = await fetch(`/gateway_events/${gatewayId}`);
+    const events = await res.json();
+
+    const div = document.getElementById("gatewayEventTimeline");
+    div.innerHTML = "";
+
+    if(events.length === 0){
+        div.innerHTML = "<span class='gray'>No events yet</span>";
+        return;
+    }
+
+    events.forEach(e => {
+        div.innerHTML += `
+        <div style="
+            padding:12px;
+            margin-bottom:10px;
+            border-left:4px solid #2563eb;
+            background:#111827;
+            border-radius:6px;
+        ">
+            <strong>${e.event_type}</strong><br>
+            ${e.event_message}<br>
+            <small>${e.created_at}</small>
+        </div>`;
+    });
+}
+
+
+async function loadGatewayTrafficChart(){
+
+    const res =
+        await fetch(
+            `/gateway_telemetry_history/${gatewayId}`
+        );
+
+    const rows = await res.json();
+
+    const labels =
+        rows.map(r => r.timestamp.split(" ")[1]);
+
+    const packets =
+        rows.map(r => r.packets_today);
+
+    const ctx =
+        document.getElementById(
+            "gatewayTrafficChart"
+        ).getContext("2d");
+
+    if(gatewayTrafficChart){
+        gatewayTrafficChart.destroy();
+    }
+
+    gatewayTrafficChart =
+        new Chart(ctx, {
+            type: "line",
+
+            data: {
+                labels: labels,
+
+                datasets: [
+                    {
+                        label: "Packets Today",
+                        data: packets,
+                        borderWidth: 2,
+                        tension: 0.3
+                    }
+                ]
+            },
+
+            options: {
+                responsive: true,
+
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: "white"
+                        }
+                    }
+                },
+
+                scales: {
+
+                    x: {
+                        ticks: {
+                            color: "white"
+                        }
+                    },
+
+                    y: {
+                        ticks: {
+                            color: "white"
+                        }
+                    }
+                }
+            }
+        });
+}
+
+
+
+async function loadGatewayPerformanceChart(){
+
+    const res =
+        await fetch(`/gateway_telemetry_history/${gatewayId}`);
+
+    const rows = await res.json();
+
+    const labels =
+        rows.map(r => r.timestamp.split(" ")[1]);
+
+    const cpu =
+        rows.map(r => r.cpu_usage);
+
+    const memory =
+        rows.map(r => r.memory_usage);
+
+    const signal =
+        rows.map(r => r.signal_quality);
+
+    const ctx =
+        document.getElementById(
+            "gatewayPerformanceChart"
+        ).getContext("2d");
+
+    if(gatewayPerformanceChart){
+        gatewayPerformanceChart.destroy();
+    }
+
+    gatewayPerformanceChart =
+        new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: "CPU %",
+                        data: cpu,
+                        borderWidth: 2,
+                        tension: 0.3
+                    },
+                    {
+                        label: "Memory %",
+                        data: memory,
+                        borderWidth: 2,
+                        tension: 0.3
+                    },
+                    {
+                        label: "Signal %",
+                        data: signal,
+                        borderWidth: 2,
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: "white"
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: "white"
+                        }
+                    },
+                    y: {
+                        ticks: {
+                            color: "white"
+                        },
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+}
+
+
+
+
+async function loadGatewayUptime(){
+
+    const res =
+        await fetch(`/gateway_uptime/${gatewayId}`);
+
+    const data = await res.json();
+
+    document.getElementById(
+        "gatewayUptime"
+    ).innerText = data.uptime;
+}
+
+
+
+async function loadGatewayAvailability() {
+    const res = await fetch(`/gateway_availability/${gatewayId}`);
+    const data = await res.json();
+
+    document.getElementById("gatewayAvailability").innerText =
+        data.availability + "%";
+}
 
 
 
@@ -382,6 +621,12 @@ loadGatewayHealth();
 loadGatewayCommandHistory();
 loadGatewayActiveAlarms();
 loadGatewayAlarmSummary();
+loadGatewayAvailability();
+loadGatewayUptime();
+loadGatewayPerformanceChart();
+loadGatewayTrafficChart();
+loadGatewayEvents();
+
 
 setInterval(() => {
     loadGatewayDetails();
@@ -390,6 +635,11 @@ setInterval(() => {
     loadGatewayCommandHistory();
     loadGatewayActiveAlarms();
     loadGatewayAlarmSummary();
+    loadGatewayAvailability();
+    loadGatewayUptime();
+    loadGatewayPerformanceChart();
+    loadGatewayTrafficChart();
+    loadGatewayEvents();
 }, 10000);
 </script>
 

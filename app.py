@@ -27,6 +27,7 @@ from postgres_db import recent_anomaly_exists_pg
 from postgres_db import resolve_open_incidents_pg
 from postgres_db import acknowledge_active_alarm_pg
 import paho.mqtt.publish as publish
+from postgres_db import log_gateway_event_pg
 
 
 app = Flask(__name__)
@@ -44,6 +45,215 @@ register_admin_routes(app)
 # ---------------- THREADS ----------------
 # threading.Thread(target=udp_listener, daemon=True).start()
 threading.Thread(target=mqtt_listener, daemon=True).start()
+
+
+
+
+
+
+
+
+@app.route("/gateway_events/<int:gateway_id>")
+def gateway_events(gateway_id):
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT gateway_eui
+    FROM gateways
+    WHERE id=%s
+    """, (gateway_id,))
+
+    row = cur.fetchone()
+
+    if not row:
+        cur.close()
+        conn.close()
+        return jsonify([])
+
+    gateway_eui = row[0]
+
+    cur.execute("""
+    SELECT
+        id,
+        event_type,
+        event_message,
+        created_at
+    FROM gateway_events
+    WHERE gateway_eui=%s
+    ORDER BY id DESC
+    LIMIT 100
+    """, (gateway_eui,))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "event_type": r[1],
+            "event_message": r[2],
+            "created_at": str(r[3])
+        }
+        for r in rows
+    ])
+
+
+
+
+
+
+
+
+
+
+@app.route("/gateway_telemetry_history/<int:gateway_id>")
+def gateway_telemetry_history(gateway_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT gateway_eui
+        FROM gateways
+        WHERE id = %s
+    """, (gateway_id,))
+
+    row = cur.fetchone()
+
+    if not row:
+        cur.close()
+        conn.close()
+        return jsonify([])
+
+    gateway_eui = row[0]
+
+    cur.execute("""
+        SELECT
+            timestamp,
+            cpu_usage,
+            memory_usage,
+            signal_quality,
+            packets_today,
+            status
+        FROM gateway_telemetry
+        WHERE gateway_eui = %s
+        ORDER BY timestamp DESC
+        LIMIT 50
+    """, (gateway_eui,))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    rows = list(reversed(rows))
+
+    return jsonify([
+        {
+            "timestamp": str(r[0]),
+            "cpu_usage": r[1],
+            "memory_usage": r[2],
+            "signal_quality": r[3],
+            "packets_today": r[4],
+            "status": r[5]
+        }
+        for r in rows
+    ])
+
+
+
+
+@app.route("/gateway_uptime/<int:gateway_id>")
+def gateway_uptime(gateway_id):
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT online_since
+    FROM gateways
+    WHERE id=%s
+    """, (gateway_id,))
+
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if not row or not row[0]:
+        return jsonify({"uptime":"--"})
+
+    delta = datetime.now() - row[0]
+
+    days = delta.days
+    hours = delta.seconds // 3600
+    minutes = (delta.seconds % 3600) // 60
+
+    return jsonify({
+        "uptime":
+        f"{days}d {hours}h {minutes}m"
+    })
+
+
+
+
+
+
+@app.route("/gateway_availability/<int:gateway_id>")
+def gateway_availability(gateway_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT gateway_eui
+        FROM gateways
+        WHERE id = %s
+    """, (gateway_id,))
+
+    gateway = cur.fetchone()
+
+    if not gateway:
+        cur.close()
+        conn.close()
+        return jsonify({"availability": 0})
+
+    gateway_eui = gateway[0]
+
+    cur.execute("""
+        SELECT
+            COUNT(*),
+            COUNT(*) FILTER (
+                WHERE status IN ('ONLINE','DEGRADED')
+            )
+        FROM gateway_telemetry
+        WHERE gateway_eui = %s
+          AND timestamp::date = CURRENT_DATE
+    """, (gateway_eui,))
+
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    total = row[0]
+    available = row[1]
+
+    if total == 0:
+        availability = 0
+    else:
+        availability = round((available / total) * 100, 2)
+
+    return jsonify({
+        "availability": availability,
+        "total_records": total,
+        "available_records": available
+    })
+
+
+
 
 @app.route("/gateway_alarm_history_page")
 def gateway_alarm_history_page():
@@ -323,6 +533,12 @@ def send_gateway_command(gateway_id):
         payload=json.dumps(payload),
         hostname="mosquitto",
         port=1883
+    )
+    
+    log_gateway_event_pg(
+        gateway_eui,
+        "COMMAND_SENT",
+        f"{command} command sent"
     )
 
     print(f"GATEWAY COMMAND PUBLISHED: {topic} -> {payload}")

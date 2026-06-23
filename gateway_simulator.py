@@ -50,7 +50,7 @@ while True:
 
     payload = {
         "gateway_eui": "GW_ABIA_001",
-        "cpu_usage": random.randint(10, 45),
+        "cpu_usage": 95,
         "memory_usage": random.randint(30, 70),
         "signal_quality": random.randint(88, 100),
         "status": "ONLINE",
