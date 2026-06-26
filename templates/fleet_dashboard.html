@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Fleet Dashboard</title>
+
+<style>
+body{
+    font-family:Arial;
+    background:#111827;
+    color:white;
+    padding:20px;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:15px;
+}
+
+.card{
+    background:#1f2937;
+    padding:20px;
+    border-radius:8px;
+}
+
+.value{
+    font-size:32px;
+    font-weight:bold;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:20px;
+    background:#1f2937;
+}
+
+th,td{
+    padding:12px;
+    border-bottom:1px solid #374151;
+}
+
+th{
+    background:#111827;
+}
+
+.green{
+    color:#00ff66;
+}
+
+.orange{
+    color:#f59e0b;
+}
+
+.red{
+    color:#ff4444;
+}
+
+.btn{
+    background:#2563eb;
+    color:white;
+    text-decoration:none;
+    padding:8px 12px;
+    border-radius:5px;
+}
+</style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+
+</head>
+
+<body>
+
+<h2>🌐 Fleet Dashboard</h2>
+
+<div class="grid">
+
+    <div class="card">
+        Total Gateways<br>
+        <span class="value" id="totalGateways">--</span>
+    </div>
+
+    <div class="card">
+        Online<br>
+        <span class="value green" id="onlineGateways">--</span>
+    </div>
+
+    <div class="card">
+        Degraded<br>
+        <span class="value orange" id="degradedGateways">--</span>
+    </div>
+
+    <div class="card">
+        Offline<br>
+        <span class="value red" id="offlineGateways">--</span>
+    </div>
+
+    <div class="card">
+        Fleet Availability<br>
+        <span class="value" id="fleetAvailability">--</span>
+    </div>
+
+    <div class="card">
+        Fleet Health Score<br>
+        <span class="value" id="fleetHealthScore">
+            --
+        </span>
+    </div>
+
+    <div class="card">
+        Critical Alarms<br>
+        <span class="value" id="fleetCriticalAlarms">
+            --
+        </span>
+    </div>
+    
+    <div class="card">
+        Warning Alarms<br>
+        <span class="value" id="fleetWarningAlarms">
+            --
+        </span>
+    </div>
+    
+    <div class="card">
+        Gateways In Alarm<br>
+        <span class="value" id="fleetGatewaysInAlarm">
+            --
+        </span>
+    </div>
+</div>
+
+
+
+<div class="card" style="margin-top:20px;">
+    <h3>📊 Fleet Status Distribution</h3>
+    <div style="height:350px;">
+        <canvas id="fleetStatusChart"></canvas>
+    </div>
+</div>
+
+
+
+<div class="card" style="margin-top:20px;">
+
+    <h2>🚨 Fleet Active Alarms</h2>
+
+    <table style="width:100%;">
+
+        <thead>
+            <tr>
+                <th>Gateway</th>
+                <th>Gateway EUI</th>
+                <th>Parameter</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="fleetAlarmTable">
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+<div class="card" style="margin-top:20px;">
+    <h3>🔎 Gateway Filters</h3>
+
+    <input id="gatewaySearch" placeholder="Search gateway name or EUI" oninput="renderFleetGateways()"
+        style="padding:8px; width:250px;">
+
+    <select id="statusFilter" onchange="renderFleetGateways()" style="padding:8px;">
+        <option value="">All Status</option>
+        <option value="ONLINE">ONLINE</option>
+        <option value="DEGRADED">DEGRADED</option>
+        <option value="OFFLINE">OFFLINE</option>
+    </select>
+</div>
+
+
+
+<div class="card" style="margin-top:20px;">
+    <h3>Gateway Fleet</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Gateway EUI</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Last Seen</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="fleetTableBody"></tbody>
+    </table>
+</div>
+
+
+
+<div style="margin-bottom:15px;">
+    <select id="fleetEventFilter" onchange="loadFleetEvents()" style="padding:8px;">
+        <option value="">All Events</option>
+        <option value="STATUS_CHANGE">Status Change</option>
+        <option value="ALARM_CLEARED">Alarm Cleared</option>
+        <option value="ALARM_RAISED">Alarm Raised</option>
+        <option value="COMMAND_SENT">Command Sent</option>
+    </select>
+</div>
+
+
+
+<div class="card" style="margin-top:20px;">
+
+    <h2>🕘 Fleet Event Timeline</h2>
+
+    <div id="fleetEventTimeline">
+
+    </div>
+
+</div>
+
+
+<script>
+
+
+let allFleetGateways = [];
+
+
+let fleetStatusChart = null;
+
+
+
+
+async function loadFleetEvents(){
+
+    const res = await fetch("/fleet_events");
+
+    const events = await res.json();
+
+    const filter =
+        document.getElementById("fleetEventFilter").value;
+
+    const filteredEvents =
+        events.filter(e => !filter || e.event_type === filter);
+
+
+    const div = document.getElementById("fleetEventTimeline");
+
+    let html = "";
+
+    filteredEvents.forEach(e => {
+
+        html += `
+        <div style="
+            margin-bottom:15px;
+            padding:15px;
+            background:#111827;
+            border-left:4px solid #2563eb;
+            border-radius:6px;
+        ">
+
+            <b>${e.event_type}</b><br>
+
+            <small>${e.gateway_name}</small><br>
+
+            ${e.event_message}<br>
+
+            <small>${e.created_at}</small>
+
+        </div>
+        `;
+    });
+
+    div.innerHTML = html;
+}
+
+
+
+
+
+function renderFleetGateways(){
+    const search = document
+        .getElementById("gatewaySearch")
+        .value
+        .toLowerCase();
+
+    const status = document
+        .getElementById("statusFilter")
+        .value;
+
+    const body = document.getElementById("fleetTableBody");
+    body.innerHTML = "";
+
+    allFleetGateways
+        .filter(g =>
+            !search ||
+            g.gateway_name.toLowerCase().includes(search) ||
+            g.gateway_eui.toLowerCase().includes(search)
+        )
+        .filter(g =>
+            !status || g.status === status
+        )
+        .forEach(g => {
+            let statusClass = "";
+
+            if(g.status === "ONLINE") statusClass = "green";
+            if(g.status === "DEGRADED") statusClass = "orange";
+            if(g.status === "OFFLINE") statusClass = "red";
+
+            body.innerHTML += `
+            <tr>
+                <td>${g.id}</td>
+                <td>${g.gateway_eui}</td>
+                <td>${g.gateway_name}</td>
+                <td class="${statusClass}">${g.status}</td>
+                <td>${g.last_seen}</td>
+                <td>
+                    <a class="btn" href="/gateway_details_page/${g.id}">
+                        View
+                    </a>
+                </td>
+            </tr>`;
+        });
+}
+
+
+
+async function loadFleetStatusChart(){
+    const res = await fetch("/fleet_summary");
+    const data = await res.json();
+
+    const ctx = document
+        .getElementById("fleetStatusChart")
+        .getContext("2d");
+
+    if(fleetStatusChart){
+        fleetStatusChart.destroy();
+    }
+
+    fleetStatusChart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+            labels: ["Online", "Degraded", "Offline"],
+            datasets: [{
+                data: [
+                    data.online,
+                    data.degraded,
+                    data.offline
+                ]
+            }]
+        },
+        options: {
+            plugins: {
+                legend: {
+                    labels: {
+                        color: "white"
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+
+
+async function ackFleetGatewayAlarm(alarmId){
+    const res = await fetch(`/ack_gateway_alarm/${alarmId}`, {
+        method: "POST"
+    });
+
+    const result = await res.json();
+    alert(result.message);
+
+    loadFleetAlarmSummary();
+    loadFleetAlarmTable();
+}
+
+
+async function loadFleetAlarmTable(){
+
+    const res =
+        await fetch("/fleet_active_alarms");
+
+    const alarms =
+        await res.json();
+
+    const tbody =
+        document.getElementById(
+            "fleetAlarmTable"
+        );
+
+    if(alarms.length === 0){
+
+        tbody.innerHTML = `
+        <tr>
+            <td colspan="6">
+                No Active Alarms
+            </td>
+        </tr>`;
+
+        return;
+    }
+
+    let html = "";
+
+    alarms.forEach(a => {
+
+        html += `
+            <tr>
+                <td>${a.gateway_name}</td>
+                <td>${a.gateway_eui}</td>
+                <td>${a.parameter}</td>
+                <td>${a.severity}</td>
+                <td>${a.alarm_status}</td>
+                <td>
+                    <a class="btn" href="/gateway_details_page/${a.gateway_id}">
+                        View
+                    </a>
+                    <button onclick="ackFleetGatewayAlarm(${a.alarm_id})">
+                        ACK
+                    </button>
+                </td>
+            </tr>`;
+    });
+
+    tbody.innerHTML = html;
+}
+
+
+
+
+async function loadFleetAlarmSummary(){
+
+    const res =
+        await fetch("/fleet_alarm_summary");
+
+    const data =
+        await res.json();
+
+    document.getElementById(
+        "fleetCriticalAlarms"
+    ).innerText =
+        data.critical;
+
+    document.getElementById(
+        "fleetWarningAlarms"
+    ).innerText =
+        data.warning;
+
+    document.getElementById(
+        "fleetGatewaysInAlarm"
+    ).innerText =
+        data.gateways_in_alarm;
+}
+
+
+
+
+async function loadFleetHealth(){
+
+    const res =
+        await fetch("/fleet_health");
+
+    const data =
+        await res.json();
+
+    document.getElementById(
+        "fleetHealthScore"
+    ).innerText =
+        data.health + "%";
+}
+
+
+async function loadFleetGateways(){
+    const res = await fetch("/fleet_gateways");
+    allFleetGateways = await res.json();
+
+    renderFleetGateways();
+}
+
+
+
+
+async function loadFleetSummary(){
+
+    try{
+
+        const res =
+            await fetch("/fleet_summary");
+
+        const data =
+            await res.json();
+
+        console.log(data);
+
+        document.getElementById(
+            "totalGateways"
+        ).innerText = data.total;
+
+        document.getElementById(
+            "onlineGateways"
+        ).innerText = data.online;
+
+        document.getElementById(
+            "degradedGateways"
+        ).innerText = data.degraded;
+
+        document.getElementById(
+            "offlineGateways"
+        ).innerText = data.offline;
+        document.getElementById("fleetAvailability").innerText =
+            data.availability + "%";
+
+    }
+    catch(err){
+
+        console.error(err);
+
+    }
+}
+
+loadFleetSummary();
+loadFleetGateways();
+loadFleetHealth();
+loadFleetAlarmSummary();
+loadFleetAlarmTable();
+loadFleetStatusChart();
+loadFleetEvents();
+
+setInterval(() => {
+    loadFleetSummary();
+    loadFleetGateways();
+    loadFleetHealth();
+    loadFleetAlarmSummary();
+    loadFleetAlarmTable();
+    loadFleetStatusChart();
+    loadFleetEvents();
+}, 10000);
+</script>
+
+</body>
+</html>

@@ -49,6 +49,256 @@ threading.Thread(target=mqtt_listener, daemon=True).start()
 
 
 
+@app.route("/fleet_events")
+def fleet_events():
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            e.id,
+            e.gateway_eui,
+            g.gateway_name,
+            e.event_type,
+            e.event_message,
+            e.created_at
+        FROM gateway_events e
+        LEFT JOIN gateways g
+            ON e.gateway_eui = g.gateway_eui
+        ORDER BY e.id DESC
+        LIMIT 20
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "gateway_eui": r[1],
+            "gateway_name": r[2],
+            "event_type": r[3],
+            "event_message": r[4],
+            "created_at": str(r[5])
+        }
+        for r in rows
+    ])
+
+
+
+
+@app.route("/fleet_active_alarms")
+def fleet_active_alarms():
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            a.id,
+            g.id,
+            g.gateway_name,
+            a.gateway_eui,
+            a.parameter,
+            a.severity,
+            a.alarm_status,
+            a.last_seen
+        FROM gateway_alarms a
+        JOIN gateways g
+            ON a.gateway_eui = g.gateway_eui
+        WHERE a.alarm_status IN ('OPEN','ACKNOWLEDGED')
+        ORDER BY a.last_seen DESC
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "alarm_id": r[0],
+            "gateway_id": r[1],
+            "gateway_name": r[2],
+            "gateway_eui": r[3],
+            "parameter": r[4],
+            "severity": r[5],
+            "alarm_status": r[6],
+            "last_seen": str(r[7])
+        }
+        for r in rows
+    ])
+
+
+
+
+@app.route("/fleet_alarm_summary")
+def fleet_alarm_summary():
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            COUNT(*) FILTER (WHERE severity = 'CRITICAL'),
+            COUNT(*) FILTER (WHERE severity = 'WARNING'),
+            COUNT(DISTINCT gateway_eui)
+        FROM gateway_alarms
+        WHERE alarm_status IN ('OPEN', 'ACKNOWLEDGED')
+    """)
+
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "critical": row[0],
+        "warning": row[1],
+        "gateways_in_alarm": row[2]
+    })
+
+
+
+
+
+@app.route("/fleet_health")
+def fleet_health():
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT status
+    FROM gateways
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    if not rows:
+        return jsonify({"health": 0})
+
+    total_score = 0
+
+    for r in rows:
+
+        status = r[0]
+
+        if status == "ONLINE":
+            total_score += 100
+
+        elif status == "DEGRADED":
+            total_score += 60
+
+        else:
+            total_score += 0
+
+    fleet_health = round(
+        total_score / len(rows),
+        1
+    )
+
+    return jsonify({
+        "health": fleet_health
+    })
+
+
+
+
+@app.route("/fleet_gateways")
+def fleet_gateways():
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            gateway_eui,
+            gateway_name,
+            status,
+            last_seen
+        FROM gateways
+        ORDER BY id ASC
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "gateway_eui": r[1],
+            "gateway_name": r[2],
+            "status": r[3],
+            "last_seen": str(r[4]) if r[4] else "-"
+        }
+        for r in rows
+    ])
+
+
+
+@app.route("/fleet_dashboard")
+def fleet_dashboard():
+    return render_template("fleet_dashboard.html")
+
+
+
+@app.route("/fleet_summary")
+def fleet_summary():
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT COUNT(*)
+        FROM gateways
+    """)
+    total = cur.fetchone()[0]
+
+    cur.execute("""
+        SELECT COUNT(*)
+        FROM gateways
+        WHERE status = 'ONLINE'
+    """)
+    online = cur.fetchone()[0]
+
+    cur.execute("""
+        SELECT COUNT(*)
+        FROM gateways
+        WHERE status = 'DEGRADED'
+    """)
+    degraded = cur.fetchone()[0]
+
+    cur.execute("""
+        SELECT COUNT(*)
+        FROM gateways
+        WHERE status = 'OFFLINE'
+    """)
+    offline = cur.fetchone()[0]
+    
+    available = online + degraded
+
+    if total == 0:
+        availability = 0
+    else:
+        availability = round((available / total) * 100, 2)
+
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "total": total,
+        "online": online,
+        "degraded": degraded,
+        "offline": offline,
+        "availability": availability
+    })
+
 
 
 

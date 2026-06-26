@@ -74,8 +74,8 @@ def clear_gateway_alarm_pg(gateway_eui, parameter):
     SELECT id
     FROM gateway_alarms
     WHERE gateway_eui = %s
-      AND parameter = %s
-      AND alarm_status IN ('OPEN', 'ACKNOWLEDGED')
+        AND parameter = %s
+        AND alarm_status IN ('OPEN', 'ACKNOWLEDGED')
     LIMIT 1
     """, (gateway_eui, parameter))
 
@@ -94,14 +94,15 @@ def clear_gateway_alarm_pg(gateway_eui, parameter):
     """, (alarm[0],))
 
     conn.commit()
-    cur.close()
-    conn.close()
 
     log_gateway_event_pg(
         gateway_eui,
         "ALARM_CLEARED",
         f"{parameter} alarm cleared"
     )
+
+    cur.close()
+    conn.close()
 
 
 
