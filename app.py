@@ -47,6 +47,43 @@ register_admin_routes(app)
 threading.Thread(target=mqtt_listener, daemon=True).start()
 
 
+@app.route("/fleet_map_gateways")
+def fleet_map_gateways():
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            gateway_eui,
+            gateway_name,
+            status,
+            latitude,
+            longitude,
+            last_seen
+        FROM gateways
+        WHERE latitude IS NOT NULL
+          AND longitude IS NOT NULL
+        ORDER BY id ASC
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "gateway_eui": r[1],
+            "gateway_name": r[2],
+            "status": r[3],
+            "latitude": r[4],
+            "longitude": r[5],
+            "last_seen": str(r[6]) if r[6] else "-"
+        }
+        for r in rows
+    ])
 
 
 @app.route("/fleet_events")
