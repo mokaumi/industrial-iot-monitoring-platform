@@ -42,9 +42,100 @@ register_admin_routes(app)
 
 
 
+
 # ---------------- THREADS ----------------
 # threading.Thread(target=udp_listener, daemon=True).start()
 threading.Thread(target=mqtt_listener, daemon=True).start()
+
+
+
+
+
+@app.route("/update_gateway_config/<int:gateway_id>", methods=["POST"])
+def update_gateway_config(gateway_id):
+    data = request.get_json()
+
+    gateway_name = data.get("gateway_name")
+    latitude = data.get("latitude")
+    longitude = data.get("longitude")
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE gateways
+        SET
+            gateway_name = %s,
+            latitude = %s,
+            longitude = %s
+        WHERE id = %s
+    """, (
+        gateway_name,
+        latitude,
+        longitude,
+        gateway_id
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": "Gateway configuration updated successfully"
+    })
+
+
+
+
+
+
+@app.route("/gateway_config_page/<int:gateway_id>")
+def gateway_config_page(gateway_id):
+    return render_template(
+        "gateway_config.html",
+        gateway_id=gateway_id
+    )
+
+
+@app.route("/gateway_config/<int:gateway_id>")
+def gateway_config(gateway_id):
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            gateway_name,
+            gateway_eui,
+            latitude,
+            longitude,
+            status
+        FROM gateways
+        WHERE id=%s
+    """,(gateway_id,))
+
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if not row:
+        return jsonify({"error":"Gateway not found"}),404
+
+    return jsonify({
+
+        "id":row[0],
+        "gateway_name":row[1],
+        "gateway_eui":row[2],
+        "latitude":row[3],
+        "longitude":row[4],
+        "status":row[5]
+
+    })
+
+
 
 
 @app.route("/fleet_map_gateways")

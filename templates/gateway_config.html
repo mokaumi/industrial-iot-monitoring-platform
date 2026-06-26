@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Gateway Configuration</title>
+<style>
+body{font-family:Arial;background:#111827;color:white;padding:20px}
+.card{background:#1f2937;padding:20px;border-radius:8px;margin:15px 0}
+input,select{width:100%;padding:10px;margin:8px 0}
+button,.btn{background:#2563eb;color:white;padding:10px 15px;border:0;border-radius:5px;text-decoration:none}
+</style>
+</head>
+<body>
+
+<h2>⚙️ Gateway Configuration</h2>
+
+<a href="/fleet_dashboard" class="btn">Back to Fleet Dashboard</a>
+
+<div class="card">
+    <label>Gateway Name</label>
+    <input id="gatewayName">
+
+    <label>Gateway EUI</label>
+    <input id="gatewayEui" disabled>
+
+    <label>Latitude</label>
+    <input id="latitude" type="number" step="any">
+
+    <label>Longitude</label>
+    <input id="longitude" type="number" step="any">
+
+    <label>Status</label>
+    <input id="status" disabled>
+
+    <button onclick="saveGatewayConfig()">Save Changes</button>
+
+    <p id="message"></p>
+</div>
+
+<script>
+const gatewayId = Number("{{ gateway_id }}");
+
+async function loadGatewayConfig(){
+    const res = await fetch(`/gateway_config/${gatewayId}`);
+    const g = await res.json();
+
+    document.getElementById("gatewayName").value = g.gateway_name;
+    document.getElementById("gatewayEui").value = g.gateway_eui;
+    document.getElementById("latitude").value = g.latitude;
+    document.getElementById("longitude").value = g.longitude;
+    document.getElementById("status").value = g.status;
+}
+
+async function saveGatewayConfig(){
+    const payload = {
+        gateway_name: document.getElementById("gatewayName").value,
+        latitude: Number(document.getElementById("latitude").value),
+        longitude: Number(document.getElementById("longitude").value)
+    };
+
+    const res = await fetch(`/update_gateway_config/${gatewayId}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+    });
+
+    const result = await res.json();
+
+    document.getElementById("message").innerText =
+        result.message;
+}
+
+loadGatewayConfig();
+</script>
+
+</body>
+</html>
