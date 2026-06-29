@@ -70,14 +70,83 @@ th{background:#111827}
 
 
 <div class="card">
-    <h3>🛰 Gateway Commands</h3>
 
-    <button onclick="sendGatewayCommand('ping')">Ping Gateway</button>
-    <button onclick="sendGatewayCommand('get_status')">Get Status</button>
-    <button onclick="sendGatewayCommand('restart')">Restart Gateway</button>
-    <button onclick="sendGatewayCommand('sync_devices')">Sync Devices</button>
+    <h3>🛠 Gateway Commands</h3>
 
-    <p id="gatewayCommandResult"></p>
+    <button onclick="issueCommand('Ping Gateway')">
+        Ping Gateway
+    </button>
+
+    <button onclick="issueCommand('Get Status')">
+        Get Status
+    </button>
+
+    <button onclick="issueCommand('Restart Gateway')">
+        Restart Gateway
+    </button>
+
+    <button onclick="issueCommand('Sync Devices')">
+        Sync Devices
+    </button>
+
+</div>
+
+
+
+
+<div class="grid">
+    <div class="card">
+        Total Commands<br>
+        <span class="value" id="totalCommands">--</span>
+    </div>
+
+    <div class="card">
+        Successful<br>
+        <span class="value green" id="successfulCommands">--</span>
+    </div>
+
+    <div class="card">
+        Failed<br>
+        <span class="value red" id="failedCommands">--</span>
+    </div>
+
+    <div class="card">
+        Pending/Running<br>
+        <span class="value orange" id="pendingCommands">--</span>
+    </div>
+</div>
+
+
+
+<div style="margin-bottom:15px;">
+    <select id="commandStatusFilter" onchange="renderGatewayCommandQueue()" style="padding:8px;">
+        <option value="">All Commands</option>
+        <option value="SUCCESS">SUCCESS</option>
+        <option value="FAILED">FAILED</option>
+        <option value="PENDING">PENDING</option>
+        <option value="RUNNING">RUNNING</option>
+    </select>
+</div>
+
+
+
+<div class="card">
+    <h3>🧾 Gateway Command Queue</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Command</th>
+                <th>Status</th>
+                <th>Issued By</th>
+                <th>Issued At</th>
+                <th>Completed At</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="gatewayCommandQueueBody"></tbody>
+    </table>
 </div>
 
 
@@ -111,6 +180,58 @@ th{background:#111827}
         </div>
     </div>
 </div>
+
+
+
+<div class="grid">
+    <div class="card">
+        Total Devices<br>
+        <span class="value" id="totalIotDevices">--</span>
+    </div>
+
+    <div class="card">
+        Online Devices<br>
+        <span class="value green" id="onlineIotDevices">--</span>
+    </div>
+
+    <div class="card">
+        Offline Devices<br>
+        <span class="value red" id="offlineIotDevices">--</span>
+    </div>
+
+    <div class="card">
+        Avg Battery<br>
+        <span class="value" id="avgDeviceBattery">--</span>
+    </div>
+</div>
+
+
+
+
+<div class="card">
+    <h3>📟 Gateway IoT Devices</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Device EUI</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Battery</th>
+                <th>RSSI</th>
+                <th>SNR</th>
+                <th>Status</th>
+                <th>Last Seen</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="gatewayIotDevicesBody"></tbody>
+    </table>
+</div>
+
+
+
 
 
 <div class="card">
@@ -187,13 +308,196 @@ th{background:#111827}
 const gatewayId = Number("{{ gateway_id }}");
 
 
-
+let allGatewayCommands = [];
 
 let gatewayPerformanceChart = null;
 
 let gatewayTrafficChart = null;
 
 
+
+
+async function loadGatewayDeviceSummary(){
+    const res = await fetch(`/gateway_device_summary/${gatewayId}`);
+    const data = await res.json();
+
+    document.getElementById("totalIotDevices").innerText = data.total;
+    document.getElementById("onlineIotDevices").innerText = data.online;
+    document.getElementById("offlineIotDevices").innerText = data.offline;
+    document.getElementById("avgDeviceBattery").innerText =
+        data.avg_battery + "%";
+}
+
+
+
+
+async function loadGatewayIotDevices(){
+    const res = await fetch(`/gateway_iot_devices/${gatewayId}`);
+    const devices = await res.json();
+
+    const body = document.getElementById("gatewayIotDevicesBody");
+    body.innerHTML = "";
+
+    devices.forEach(d => {
+        const statusClass =
+            d.status === "ONLINE" ? "green" :
+            d.status === "OFFLINE" ? "red" :
+            "orange";
+
+        body.innerHTML += `
+        <tr>
+            <td>${d.device_eui}</td>
+            <td>${d.device_name}</td>
+            <td>${d.device_type}</td>
+            <td>${d.battery_level}%</td>
+            <td>${d.rssi}</td>
+            <td>${d.snr}</td>
+            <td class="${statusClass}">${d.status}</td>
+            <td>${d.last_seen}</td>
+            <td>
+                <a class="btn" href="/iot_device_details_page/${d.id}">
+                    View
+                </a>
+            </td>
+        </tr>`;
+    });
+}
+
+
+
+async function loadGatewayCommandSummary(){
+    const res = await fetch(`/gateway_command_summary/${gatewayId}`);
+    const data = await res.json();
+
+    document.getElementById("totalCommands").innerText = data.total;
+    document.getElementById("successfulCommands").innerText = data.success;
+    document.getElementById("failedCommands").innerText = data.failed;
+    document.getElementById("pendingCommands").innerText = data.pending;
+}
+
+
+
+async function issueCommand(command){
+
+    const res = await fetch(
+        `/issue_gateway_command/${gatewayId}`,
+        {
+            method:"POST",
+
+            headers:{
+                "Content-Type":"application/json"
+            },
+
+            body:JSON.stringify({
+                command:command
+            })
+        }
+    );
+
+    const result = await res.json();
+
+    alert(result.message);
+
+    loadGatewayCommandQueue();
+
+}
+
+
+
+
+
+
+async function retryGatewayCommand(commandId){
+    const res = await fetch(`/retry_gateway_command/${commandId}`, {
+        method: "POST"
+    });
+
+    const result = await res.json();
+
+    alert(result.message);
+
+    loadGatewayCommandQueue();
+    loadGatewayCommandSummary();
+}
+
+
+
+
+async function cancelGatewayCommand(commandId){
+    const res = await fetch(`/cancel_gateway_command/${commandId}`, {
+        method: "POST"
+    });
+
+    const result = await res.json();
+
+    alert(result.message);
+
+    loadGatewayCommandQueue();
+    loadGatewayCommandSummary();
+}
+
+
+
+function renderGatewayCommandQueue(){
+    const filter =
+        document.getElementById("commandStatusFilter").value;
+
+    const body =
+        document.getElementById("gatewayCommandQueueBody");
+
+    body.innerHTML = "";
+
+        allGatewayCommands
+            .filter(c => !filter || c.command_status === filter)
+            .forEach(c => {
+                body.innerHTML += `
+                <tr>
+                    <td>${c.command_name}</td>
+
+                    <td class="${c.command_status === 'SUCCESS' ? 'green' :
+                                    c.command_status === 'RUNNING' ? 'orange' :
+                                        c.command_status === 'FAILED' ? 'red' :
+                                        c.command_status === 'CANCELLED' ? 'red' :
+                                            ''
+                                }">
+                        ${c.command_status}
+                    </td>
+
+                    <td>${c.issued_by}</td>
+                    <td>${c.issued_at}</td>
+                    <td>${c.completed_at}</td>
+
+                    <td>
+                        ${c.command_status === "FAILED"
+                                    ? `<button onclick="retryGatewayCommand(${c.id})">
+                                    Retry
+                            </button>`
+                                    : "-"
+                                }
+                        ${
+                            c.command_status === "PENDING"
+                            ? `<button onclick="cancelGatewayCommand(${c.id})">
+                                    Cancel
+                                </button>`
+                                        : ""
+                        }
+                    </td>
+                </tr>`;
+        });
+}
+
+
+
+
+
+
+
+async function loadGatewayCommandQueue(){
+    const res = await fetch(`/gateway_command_queue/${gatewayId}`);
+    allGatewayCommands = await res.json();
+
+    renderGatewayCommandQueue();
+}
 
 
 async function loadGatewayEvents(){
@@ -627,6 +931,10 @@ loadGatewayUptime();
 loadGatewayPerformanceChart();
 loadGatewayTrafficChart();
 loadGatewayEvents();
+loadGatewayCommandQueue();
+loadGatewayCommandSummary();
+loadGatewayIotDevices();
+loadGatewayDeviceSummary();
 
 
 setInterval(() => {
@@ -641,6 +949,10 @@ setInterval(() => {
     loadGatewayPerformanceChart();
     loadGatewayTrafficChart();
     loadGatewayEvents();
+    loadGatewayCommandQueue();
+    loadGatewayCommandSummary();
+    loadGatewayIotDevices();
+    loadGatewayDeviceSummary();
 }, 10000);
 </script>
 

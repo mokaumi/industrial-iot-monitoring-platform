@@ -381,18 +381,22 @@ function renderFleetGateways(){
             if(g.status === "OFFLINE") statusClass = "red";
 
             body.innerHTML += `
-            <tr>
-                <td>${g.id}</td>
-                <td>${g.gateway_eui}</td>
-                <td>${g.gateway_name}</td>
-                <td class="${statusClass}">${g.status}</td>
-                <td>${g.last_seen}</td>
-                <td>
-                    <a class="btn" href="/gateway_details_page/${g.id}">
-                        View
-                    </a>
-                </td>
-            </tr>`;
+        <tr>
+            <td>${g.id}</td>
+            <td>${g.gateway_eui}</td>
+            <td>${g.gateway_name}</td>
+            <td class="${statusClass}">${g.status}</td>
+            <td>${g.last_seen}</td>
+            <td>
+                <a class="btn" href="/gateway_details_page/${g.id}">
+                    View
+                </a>
+
+                <a class="btn" href="/gateway_config_page/${g.id}">
+                    Config
+                </a>
+            </td>
+        </tr>`;
         });
 }
 

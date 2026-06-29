@@ -80,7 +80,12 @@ services:
     depends_on:
       - mosquitto
 
-
+  gateway_command_worker:
+    build: .
+    container_name: iot_gateway_command_worker
+    command: python3 -u gateway_command_worker.py
+    depends_on:
+      - postgres
   
 
 volumes:

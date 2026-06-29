@@ -50,6 +50,355 @@ threading.Thread(target=mqtt_listener, daemon=True).start()
 
 
 
+@app.route("/iot_device_details/<int:device_id>")
+def iot_device_details(device_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            d.id,
+            d.device_eui,
+            d.device_name,
+            d.device_type,
+            d.site,
+            d.firmware_version,
+            d.battery_level,
+            d.rssi,
+            d.snr,
+            d.status,
+            d.is_active,
+            d.last_seen,
+            g.gateway_name
+        FROM iot_devices d
+        JOIN gateways g
+            ON d.gateway_id = g.id
+        WHERE d.id=%s
+    """, (device_id,))
+
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if not row:
+        return jsonify({"error": "Device not found"}), 404
+
+    return jsonify({
+        "id": row[0],
+        "device_eui": row[1],
+        "device_name": row[2],
+        "device_type": row[3],
+        "site": row[4],
+        "firmware_version": row[5],
+        "battery_level": row[6],
+        "rssi": row[7],
+        "snr": row[8],
+        "status": row[9],
+        "is_active": row[10],
+        "last_seen": str(row[11]) if row[11] else "-",
+        "gateway_name": row[12]
+    })
+
+
+
+
+
+@app.route("/iot_device_details_page/<int:device_id>")
+def iot_device_details_page(device_id):
+    return render_template(
+        "iot_device_details.html",
+        device_id=device_id
+    )
+
+
+
+
+@app.route("/gateway_device_summary/<int:gateway_id>")
+def gateway_device_summary(gateway_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            COUNT(*),
+            COUNT(*) FILTER (WHERE status='ONLINE'),
+            COUNT(*) FILTER (WHERE status='OFFLINE'),
+            ROUND(AVG(battery_level), 1)
+        FROM iot_devices
+        WHERE gateway_id=%s
+    """, (gateway_id,))
+
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "total": row[0],
+        "online": row[1],
+        "offline": row[2],
+        "avg_battery": float(row[3]) if row[3] else 0
+    })
+
+
+
+
+@app.route("/gateway_iot_devices/<int:gateway_id>")
+def gateway_iot_devices(gateway_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            device_eui,
+            device_name,
+            device_type,
+            site,
+            firmware_version,
+            battery_level,
+            rssi,
+            snr,
+            status,
+            is_active,
+            last_seen
+        FROM iot_devices
+        WHERE gateway_id=%s
+        ORDER BY id ASC
+    """, (gateway_id,))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "device_eui": r[1],
+            "device_name": r[2],
+            "device_type": r[3],
+            "site": r[4],
+            "firmware_version": r[5],
+            "battery_level": r[6],
+            "rssi": r[7],
+            "snr": r[8],
+            "status": r[9],
+            "is_active": r[10],
+            "last_seen": str(r[11]) if r[11] else "-"
+        }
+        for r in rows
+    ])
+
+    
+@app.route("/cancel_gateway_command/<int:command_id>", methods=["POST"])
+def cancel_gateway_command(command_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE gateway_commands
+        SET command_status='CANCELLED',
+            completed_at=CURRENT_TIMESTAMP
+        WHERE id=%s
+          AND command_status='PENDING'
+    """, (command_id,))
+
+    updated = cur.rowcount
+
+    cur.execute("""
+        SELECT g.gateway_eui, c.command_name
+        FROM gateway_commands c
+        JOIN gateways g ON c.gateway_id = g.id
+        WHERE c.id = %s
+    """, (command_id,))
+
+    row = cur.fetchone()
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    if updated == 0:
+        return jsonify({
+            "success": False,
+            "message": "Command cannot be cancelled"
+        })
+
+    if row:
+        log_gateway_event_pg(
+            row[0],
+            "COMMAND_CANCELLED",
+            f"{row[1]} cancelled"
+        )
+
+    return jsonify({
+        "success": True,
+        "message": "Command cancelled successfully"
+    })
+
+
+
+@app.route("/retry_gateway_command/<int:command_id>", methods=["POST"])
+def retry_gateway_command(command_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT gateway_id, command_name
+        FROM gateway_commands
+        WHERE id=%s
+    """, (command_id,))
+
+    row = cur.fetchone()
+
+    if not row:
+        cur.close()
+        conn.close()
+        return jsonify({
+            "success": False,
+            "message": "Command not found"
+        }), 404
+
+    gateway_id = row[0]
+    command_name = row[1]
+
+    cur.execute("""
+        INSERT INTO gateway_commands
+        (
+            gateway_id,
+            command_name,
+            command_status,
+            issued_by
+        )
+        VALUES (%s,%s,'PENDING','Admin')
+    """, (
+        gateway_id,
+        command_name
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": "Command retry queued successfully"
+    })
+
+
+
+
+@app.route("/gateway_command_summary/<int:gateway_id>")
+def gateway_command_summary(gateway_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            COUNT(*),
+            COUNT(*) FILTER (WHERE command_status='SUCCESS'),
+            COUNT(*) FILTER (WHERE command_status='FAILED'),
+            COUNT(*) FILTER (WHERE command_status IN ('PENDING','RUNNING'))
+        FROM gateway_commands
+        WHERE gateway_id=%s
+    """, (gateway_id,))
+
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "total": row[0],
+        "success": row[1],
+        "failed": row[2],
+        "pending": row[3]
+    })
+
+
+
+
+@app.route("/gateway_command_queue/<int:gateway_id>")
+def gateway_command_queue(gateway_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            command_name,
+            command_status,
+            issued_by,
+            issued_at,
+            completed_at
+        FROM gateway_commands
+        WHERE gateway_id = %s
+        ORDER BY id DESC
+        LIMIT 20
+    """, (gateway_id,))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "command_name": r[1],
+            "command_status": r[2],
+            "issued_by": r[3],
+            "issued_at": str(r[4]),
+            "completed_at": str(r[5]) if r[5] else "-"
+        }
+        for r in rows
+    ])
+
+
+
+
+
+@app.route("/issue_gateway_command/<int:gateway_id>", methods=["POST"])
+def issue_gateway_command(gateway_id):
+
+    data = request.get_json()
+
+    command = data.get("command")
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        INSERT INTO gateway_commands
+        (
+            gateway_id,
+            command_name,
+            command_status,
+            issued_by
+        )
+        VALUES
+        (%s,%s,'PENDING','Admin')
+    """,
+    (
+        gateway_id,
+        command
+    ))
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "success":True,
+        "message":"Command queued successfully"
+    })
+
+
+
+
 
 @app.route("/update_gateway_config/<int:gateway_id>", methods=["POST"])
 def update_gateway_config(gateway_id):

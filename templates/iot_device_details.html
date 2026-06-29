@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>IoT Device Details</title>
+
+<style>
+body{
+    font-family:Arial;
+    background:#111827;
+    color:white;
+    padding:20px;
+}
+
+.card{
+    background:#1f2937;
+    padding:20px;
+    border-radius:8px;
+    margin-top:15px;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:15px;
+}
+
+.value{
+    font-size:32px;
+    font-weight:bold;
+}
+
+.green{color:#00ff66;}
+.orange{color:#f59e0b;}
+.red{color:#ff4444;}
+
+.btn{
+    background:#2563eb;
+    color:white;
+    padding:8px 12px;
+    border-radius:5px;
+    text-decoration:none;
+}
+</style>
+</head>
+
+<body>
+
+<h2>📟 IoT Device Details</h2>
+
+<a href="/gateway_details_page/1" class="btn">Back to Gateway</a>
+
+<div class="card">
+    <h3 id="deviceName">Loading...</h3>
+    <p><b>EUI:</b> <span id="deviceEui">--</span></p>
+    <p><b>Type:</b> <span id="deviceType">--</span></p>
+    <p><b>Gateway:</b> <span id="gatewayName">--</span></p>
+    <p><b>Site:</b> <span id="site">--</span></p>
+</div>
+
+<div class="grid">
+    <div class="card">
+        Status<br>
+        <span class="value" id="status">--</span>
+    </div>
+
+    <div class="card">
+        Battery<br>
+        <span class="value" id="battery">--</span>
+    </div>
+
+    <div class="card">
+        RSSI<br>
+        <span class="value" id="rssi">--</span>
+    </div>
+
+    <div class="card">
+        SNR<br>
+        <span class="value" id="snr">--</span>
+    </div>
+</div>
+
+<div class="card">
+    <p><b>Firmware:</b> <span id="firmware">--</span></p>
+    <p><b>Last Seen:</b> <span id="lastSeen">--</span></p>
+    <p><b>Active:</b> <span id="isActive">--</span></p>
+</div>
+
+<script>
+const deviceId = Number("{{ device_id }}");
+
+async function loadDeviceDetails(){
+    const res = await fetch(`/iot_device_details/${deviceId}`);
+    const d = await res.json();
+
+    document.getElementById("deviceName").innerText = d.device_name;
+    document.getElementById("deviceEui").innerText = d.device_eui;
+    document.getElementById("deviceType").innerText = d.device_type;
+    document.getElementById("gatewayName").innerText = d.gateway_name;
+    document.getElementById("site").innerText = d.site;
+
+    const statusEl = document.getElementById("status");
+    statusEl.innerText = d.status;
+
+    statusEl.className =
+        d.status === "ONLINE" ? "value green" :
+        d.status === "OFFLINE" ? "value red" :
+        "value orange";
+
+    document.getElementById("battery").innerText = d.battery_level + "%";
+    document.getElementById("rssi").innerText = d.rssi;
+    document.getElementById("snr").innerText = d.snr;
+    document.getElementById("firmware").innerText = d.firmware_version;
+    document.getElementById("lastSeen").innerText = d.last_seen;
+    document.getElementById("isActive").innerText = d.is_active ? "YES" : "NO";
+}
+
+loadDeviceDetails();
+setInterval(loadDeviceDetails, 10000);
+</script>
+
+</body>
+</html>
