@@ -49,6 +49,60 @@ threading.Thread(target=mqtt_listener, daemon=True).start()
 
 
 
+@app.route("/update_iot_device_config/<int:device_id>", methods=["POST"])
+def update_iot_device_config(device_id):
+    data = request.get_json()
+
+    device_name = data.get("device_name")
+    device_type = data.get("device_type")
+    site = data.get("site")
+    firmware_version = data.get("firmware_version")
+    is_active = data.get("is_active")
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE iot_devices
+        SET
+            device_name=%s,
+            device_type=%s,
+            site=%s,
+            firmware_version=%s,
+            is_active=%s
+        WHERE id=%s
+    """, (
+        device_name,
+        device_type,
+        site,
+        firmware_version,
+        is_active,
+        device_id
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": "Device configuration updated successfully"
+    })
+
+
+
+
+@app.route("/iot_device_config_page/<int:device_id>")
+def iot_device_config_page(device_id):
+    return render_template(
+        "iot_device_config.html",
+        device_id=device_id
+    )
+
+
+
+
+
 @app.route("/iot_device_alarm_history/<int:device_id>")
 def iot_device_alarm_history(device_id):
 

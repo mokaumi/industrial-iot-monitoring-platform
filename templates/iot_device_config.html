@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>IoT Device Configuration</title>
+<style>
+body{font-family:Arial;background:#111827;color:white;padding:20px}
+.card{background:#1f2937;padding:20px;border-radius:8px;margin-top:15px}
+input,select{width:100%;padding:10px;margin:8px 0}
+.btn,button{background:#2563eb;color:white;padding:10px 15px;border:0;border-radius:5px;text-decoration:none}
+</style>
+</head>
+<body>
+
+<h2>⚙️ IoT Device Configuration</h2>
+
+<a href="/gateway_details_page/1" class="btn">Back to Gateway</a>
+
+<div class="card">
+    <label>Device Name</label>
+    <input id="deviceName">
+
+    <label>Device EUI</label>
+    <input id="deviceEui" disabled>
+
+    <label>Device Type</label>
+    <input id="deviceType">
+
+    <label>Site</label>
+    <input id="site">
+
+    <label>Firmware Version</label>
+    <input id="firmwareVersion">
+
+    <label>Active</label>
+    <select id="isActive">
+        <option value="true">YES</option>
+        <option value="false">NO</option>
+    </select>
+
+    <button onclick="saveDeviceConfig()">Save Changes</button>
+
+    <p id="message"></p>
+</div>
+
+<script>
+const deviceId = Number("{{ device_id }}");
+
+async function loadDeviceConfig(){
+    const res = await fetch(`/iot_device_details/${deviceId}`);
+    const d = await res.json();
+
+    document.getElementById("deviceName").value = d.device_name;
+    document.getElementById("deviceEui").value = d.device_eui;
+    document.getElementById("deviceType").value = d.device_type;
+    document.getElementById("site").value = d.site;
+    document.getElementById("firmwareVersion").value = d.firmware_version;
+    document.getElementById("isActive").value = d.is_active ? "true" : "false";
+}
+
+async function saveDeviceConfig(){
+    const payload = {
+        device_name: document.getElementById("deviceName").value,
+        device_type: document.getElementById("deviceType").value,
+        site: document.getElementById("site").value,
+        firmware_version: document.getElementById("firmwareVersion").value,
+        is_active: document.getElementById("isActive").value === "true"
+    };
+
+    const res = await fetch(`/update_iot_device_config/${deviceId}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+    });
+
+    const result = await res.json();
+
+    document.getElementById("message").innerText =
+        result.message;
+}
+
+loadDeviceConfig();
+</script>
+
+</body>
+</html>
