@@ -49,6 +49,46 @@ threading.Thread(target=mqtt_listener, daemon=True).start()
 
 
 
+@app.route("/iot_device_alarm_history/<int:device_id>")
+def iot_device_alarm_history(device_id):
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            alarm_name,
+            severity,
+            status,
+            description,
+            first_seen,
+            last_seen
+        FROM iot_device_alarms
+        WHERE device_id=%s
+        ORDER BY last_seen DESC
+    """,(device_id,))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id":r[0],
+            "alarm_name":r[1],
+            "severity":r[2],
+            "status":r[3],
+            "description":r[4],
+            "first_seen":str(r[5]),
+            "last_seen":str(r[6])
+        }
+        for r in rows
+    ])
+
+
+
 
 @app.route("/ack_iot_device_alarm/<int:alarm_id>", methods=["POST"])
 def ack_iot_device_alarm(alarm_id):
