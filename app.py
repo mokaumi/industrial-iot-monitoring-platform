@@ -50,6 +50,143 @@ threading.Thread(target=mqtt_listener, daemon=True).start()
 
 
 
+@app.route("/ack_iot_device_alarm/<int:alarm_id>", methods=["POST"])
+def ack_iot_device_alarm(alarm_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE iot_device_alarms
+        SET status='ACKNOWLEDGED'
+        WHERE id=%s
+          AND status='ACTIVE'
+    """, (alarm_id,))
+
+    updated = cur.rowcount
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    if updated == 0:
+        return jsonify({
+            "success": False,
+            "message": "Alarm cannot be acknowledged"
+        })
+
+    return jsonify({
+        "success": True,
+        "message": "Device alarm acknowledged"
+    })
+
+
+
+
+
+@app.route("/iot_device_alarm_summary/<int:device_id>")
+def iot_device_alarm_summary(device_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            COUNT(*),
+            COUNT(*) FILTER (WHERE severity='CRITICAL' AND status='ACTIVE'),
+            COUNT(*) FILTER (WHERE severity='WARNING' AND status='ACTIVE'),
+            COUNT(*) FILTER (WHERE status='ACTIVE')
+        FROM iot_device_alarms
+        WHERE device_id=%s
+    """, (device_id,))
+
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "total": row[0],
+        "critical": row[1],
+        "warning": row[2],
+        "active": row[3]
+    })
+
+
+
+
+@app.route("/iot_device_alarms/<int:device_id>")
+def iot_device_alarms(device_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            alarm_name,
+            severity,
+            status,
+            description,
+            first_seen,
+            last_seen
+        FROM iot_device_alarms
+        WHERE device_id=%s
+          AND status='ACTIVE'
+        ORDER BY last_seen DESC
+    """, (device_id,))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "alarm_name": r[1],
+            "severity": r[2],
+            "status": r[3],
+            "description": r[4],
+            "first_seen": str(r[5]),
+            "last_seen": str(r[6])
+        }
+        for r in rows
+    ])
+
+
+@app.route("/iot_device_telemetry/<int:device_id>")
+def get_iot_device_telemetry(device_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            telemetry_key,
+            telemetry_value,
+            unit,
+            recorded_at
+        FROM iot_device_telemetry
+        WHERE device_id=%s
+        ORDER BY recorded_at DESC
+    """, (device_id,))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "telemetry_key": r[0],
+            "telemetry_value": r[1],
+            "unit": r[2],
+            "recorded_at": str(r[3])
+        }
+        for r in rows
+    ])
+
+
+
+
+
 @app.route("/iot_device_details/<int:device_id>")
 def iot_device_details(device_id):
     conn = get_pg_connection()

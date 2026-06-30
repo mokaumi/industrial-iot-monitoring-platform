@@ -2,6 +2,7 @@
 <html>
 <head>
 <title>IoT Device Details</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body{
@@ -40,6 +41,27 @@ body{
     border-radius:5px;
     text-decoration:none;
 }
+
+
+
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+
+th, td{
+    padding:12px;
+    border-bottom:1px solid #374151;
+    text-align:left;
+}
+
+th{
+    background:#111827;
+}
+
+
 </style>
 </head>
 
@@ -85,7 +107,285 @@ body{
     <p><b>Active:</b> <span id="isActive">--</span></p>
 </div>
 
+
+
+
+<div class="card">
+
+    <h3>📈 Device Telemetry</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+                <th>Unit</th>
+                <th>Recorded At</th>
+            </tr>
+        </thead>
+
+        <tbody id="telemetryTable">
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+
+<div class="grid">
+    <div class="card">
+        Voltage<br>
+        <span class="value" id="telemetryVoltage">--</span>
+    </div>
+
+    <div class="card">
+        Current<br>
+        <span class="value" id="telemetryCurrent">--</span>
+    </div>
+
+    <div class="card">
+        Power<br>
+        <span class="value" id="telemetryPower">--</span>
+    </div>
+
+    <div class="card">
+        Energy<br>
+        <span class="value" id="telemetryEnergy">--</span>
+    </div>
+</div>
+
+
+
+
+
+
+<div class="card">
+    <h3>📊 Device Telemetry Chart</h3>
+    <div style="height:350px;">
+        <canvas id="telemetryChart"></canvas>
+    </div>
+</div>
+
+
+
+<div class="grid">
+    <div class="card">
+        Total Device Alarms<br>
+        <span class="value" id="totalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Critical<br>
+        <span class="value red" id="criticalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Warning<br>
+        <span class="value orange" id="warningDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Active<br>
+        <span class="value" id="activeDeviceAlarms">--</span>
+    </div>
+</div>
+
+
+
+
+<div class="card">
+    <h3>🚨 Device Active Alarms</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Alarm</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Description</th>
+                <th>Last Seen</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceAlarmTable"></tbody>
+    </table>
+</div>
+
+
+
 <script>
+
+
+
+
+let telemetryChart = null;
+
+
+
+
+async function ackDeviceAlarm(alarmId){
+    const res = await fetch(`/ack_iot_device_alarm/${alarmId}`, {
+        method: "POST"
+    });
+
+    const result = await res.json();
+
+    alert(result.message);
+
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+}
+
+
+
+
+async function loadDeviceAlarmSummary(){
+    const res = await fetch(`/iot_device_alarm_summary/${deviceId}`);
+    const data = await res.json();
+
+    document.getElementById("totalDeviceAlarms").innerText = data.total;
+    document.getElementById("criticalDeviceAlarms").innerText = data.critical;
+    document.getElementById("warningDeviceAlarms").innerText = data.warning;
+    document.getElementById("activeDeviceAlarms").innerText = data.active;
+}
+
+
+
+
+async function loadDeviceAlarms(){
+    const res = await fetch(`/iot_device_alarms/${deviceId}`);
+    const alarms = await res.json();
+
+    const body = document.getElementById("deviceAlarmTable");
+    body.innerHTML = "";
+
+    if(alarms.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="5">No active device alarms</td>
+        </tr>`;
+        return;
+    }
+
+    alarms.forEach(a => {
+        const severityClass =
+            a.severity === "CRITICAL" ? "red" :
+            a.severity === "WARNING" ? "orange" :
+            "green";
+
+        body.innerHTML += `
+        <tr>
+            <td>${a.alarm_name}</td>
+            <td class="${severityClass}">${a.severity}</td>
+            <td>${a.status}</td>
+            <td>${a.description}</td>
+            <td>${a.last_seen}</td>
+            <td>
+                <button onclick="ackDeviceAlarm(${a.id})">
+                    ACK
+                </button>
+            </td>
+
+        </tr>`;
+    });
+}
+
+
+
+async function loadTelemetrySummary(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const findValue = (key) => {
+        const item = data.find(t => t.telemetry_key === key);
+        return item ? `${item.telemetry_value} ${item.unit}` : "--";
+    };
+
+    document.getElementById("telemetryVoltage").innerText =
+        findValue("voltage");
+
+    document.getElementById("telemetryCurrent").innerText =
+        findValue("current");
+
+    document.getElementById("telemetryPower").innerText =
+        findValue("power");
+
+    document.getElementById("telemetryEnergy").innerText =
+        findValue("energy");
+}
+
+
+
+
+
+
+async function loadTelemetryChart(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const labels = data.map(t => t.telemetry_key);
+    const values = data.map(t => t.telemetry_value);
+
+    const ctx =
+        document.getElementById("telemetryChart")
+        .getContext("2d");
+
+    if(telemetryChart){
+        telemetryChart.destroy();
+    }
+
+    telemetryChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Telemetry Value",
+                data: values
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            plugins: {
+                legend: {
+                    labels: {
+                        color: "white"
+                    }
+                }
+            },
+
+            scales: {
+                x: {
+                    ticks: {
+                        color: "white"
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: "white"
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+
+
 const deviceId = Number("{{ device_id }}");
 
 async function loadDeviceDetails(){
@@ -114,8 +414,64 @@ async function loadDeviceDetails(){
     document.getElementById("isActive").innerText = d.is_active ? "YES" : "NO";
 }
 
+
+async function loadTelemetry(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("telemetryTable");
+
+    body.innerHTML = "";
+
+    if(data.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="4">No telemetry available</td>
+        </tr>`;
+        return;
+    }
+
+    data.forEach(t=>{
+
+        body.innerHTML += `
+        <tr>
+            <td>${t.telemetry_key}</td>
+            <td>${t.telemetry_value}</td>
+            <td>${t.unit}</td>
+            <td>${t.recorded_at}</td>
+        </tr>`;
+    });
+}
+
+
+    
+
+
+
+
+
+
+
+
 loadDeviceDetails();
-setInterval(loadDeviceDetails, 10000);
+loadTelemetry();
+loadTelemetryChart();
+loadTelemetrySummary();
+loadDeviceAlarms();
+loadDeviceAlarmSummary();
+
+setInterval(() => {
+    loadDeviceDetails();
+    loadTelemetry();
+    loadTelemetryChart();
+    loadTelemetrySummary();
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+},10000);
 </script>
 
 </body>
