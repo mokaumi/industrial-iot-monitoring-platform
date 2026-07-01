@@ -345,21 +345,26 @@ async function loadGatewayIotDevices(){
             "orange";
 
         body.innerHTML += `
-        <tr>
-            <td>${d.device_eui}</td>
-            <td>${d.device_name}</td>
-            <td>${d.device_type}</td>
-            <td>${d.battery_level}%</td>
-            <td>${d.rssi}</td>
-            <td>${d.snr}</td>
-            <td class="${statusClass}">${d.status}</td>
-            <td>${d.last_seen}</td>
-            <td>
-                <a class="btn" href="/iot_device_details_page/${d.id}">
-                    View
-                </a>
-            </td>
-        </tr>`;
+            <tr>
+                <td>${d.device_eui}</td>
+                <td>${d.device_name}</td>
+                <td>${d.device_type}</td>
+                <td>${d.battery_level}%</td>
+                <td>${d.rssi}</td>
+                <td>${d.snr}</td>
+                <td class="${statusClass}">${d.status}</td>
+                <td>${d.last_seen}</td>
+
+                <td>
+                    <a class="btn" href="/iot_device_details_page/${d.id}">
+                        View
+                    </a>
+
+                    <a class="btn" href="/iot_device_config_page/${d.id}">
+                        Config
+                    </a>
+                </td>
+            </tr>`;
     });
 }
 
