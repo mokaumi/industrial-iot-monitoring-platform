@@ -253,6 +253,53 @@ th{
 
 
 
+<div class="card">
+
+    <h3>🛰 Device Command Center</h3>
+
+    <button onclick="sendDeviceCommand('Ping Device')">
+        Ping Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Restart Device')">
+        Restart Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Request Telemetry')">
+        Request Telemetry
+    </button>
+
+</div>
+
+
+
+<div class="card">
+
+    <h3>📜 Device Command History</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Command</th>
+                <th>Status</th>
+                <th>Issued By</th>
+                <th>Issued At</th>
+                <th>Completed</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceCommandTable">
+
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
 
 <script>
 
@@ -261,6 +308,108 @@ th{
 
 let telemetryChart = null;
 let allDeviceAlarmHistory = [];
+
+
+
+
+async function retryDeviceCommand(commandId){
+
+    await fetch(`/retry_iot_device_command/${commandId}`,{
+        method:"POST"
+    });
+
+    loadDeviceCommands();
+
+}
+
+
+
+
+async function loadDeviceCommands(){
+
+    const response =
+        await fetch(`/iot_device_command_queue/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("deviceCommandTable");
+
+    body.innerHTML = "";
+
+    data.forEach(c=>{
+
+        let statusClass="";
+
+        if (c.command_status === "SUCCESS")
+            statusClass = "green";
+
+        else if (c.command_status === "FAILED")
+            statusClass = "red";
+
+        else if (c.command_status === "RUNNING")
+            statusClass = "orange";
+
+        else
+            statusClass = "";
+
+        body.innerHTML += `
+        <tr>
+
+            <td>${c.command_name}</td>
+
+            <td class="${statusClass}">
+                ${c.command_status}
+            </td>
+
+            <td>${c.issued_by}</td>
+
+            <td>${c.issued_at}</td>
+
+            <td>${c.completed_at}</td>
+
+                <td>
+
+                    ${c.command_status === "FAILED"
+                                    ?
+                                    `<button onclick="retryDeviceCommand(${c.id})">
+                            Retry
+                        </button>`
+                                    :
+                                    "-"
+                    }
+
+                </td>
+
+        </tr>
+        `;
+
+    });
+
+}
+
+
+
+
+async function sendDeviceCommand(command){
+
+    await fetch(`/issue_iot_device_command/${deviceId}`,{
+
+        method:"POST",
+
+        headers:{
+            "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+            command:command
+        })
+
+    });
+
+    loadDeviceCommands();
+
+}
 
 
 
@@ -524,14 +673,6 @@ async function loadTelemetry(){
 }
 
 
-    
-
-
-
-
-
-
-
 
 loadDeviceDetails();
 loadTelemetry();
@@ -540,6 +681,9 @@ loadTelemetrySummary();
 loadDeviceAlarms();
 loadDeviceAlarmSummary();
 loadDeviceAlarmHistory();
+loadDeviceCommands();
+
+
 
 setInterval(() => {
     loadDeviceDetails();
@@ -549,6 +693,7 @@ setInterval(() => {
     loadDeviceAlarms();
     loadDeviceAlarmSummary();
     loadDeviceAlarmHistory();
+    loadDeviceCommands();
 },10000);
 </script>
 

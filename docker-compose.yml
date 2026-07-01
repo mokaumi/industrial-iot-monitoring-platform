@@ -87,6 +87,12 @@ services:
     depends_on:
       - postgres
   
+  iot_device_command_worker:
+    build: .
+    container_name: iot_device_command_worker
+    command: python3 -u iot_device_command_worker.py
+    depends_on:
+      - postgres
 
 volumes:
   postgres_data:

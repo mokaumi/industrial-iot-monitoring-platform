@@ -49,6 +49,118 @@ threading.Thread(target=mqtt_listener, daemon=True).start()
 
 
 
+@app.route("/retry_iot_device_command/<int:command_id>", methods=["POST"])
+def retry_iot_device_command(command_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT device_id, command_name
+        FROM iot_device_commands
+        WHERE id=%s
+    """, (command_id,))
+
+    row = cur.fetchone()
+
+    if not row:
+        cur.close()
+        conn.close()
+        return jsonify({
+            "success": False,
+            "message": "Device command not found"
+        }), 404
+
+    cur.execute("""
+        INSERT INTO iot_device_commands
+        (device_id, command_name, command_status, issued_by)
+        VALUES (%s, %s, 'PENDING', 'Admin')
+    """, (row[0], row[1]))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": "Device command retry queued"
+    })
+
+
+
+
+
+@app.route("/iot_device_command_queue/<int:device_id>")
+def iot_device_command_queue(device_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            command_name,
+            command_status,
+            issued_by,
+            issued_at,
+            completed_at
+        FROM iot_device_commands
+        WHERE device_id=%s
+        ORDER BY id DESC
+        LIMIT 20
+    """, (device_id,))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "command_name": r[1],
+            "command_status": r[2],
+            "issued_by": r[3],
+            "issued_at": str(r[4]),
+            "completed_at": str(r[5]) if r[5] else "-"
+        }
+        for r in rows
+    ])
+
+
+@app.route("/issue_iot_device_command/<int:device_id>", methods=["POST"])
+def issue_iot_device_command(device_id):
+    data = request.get_json()
+
+    command = data.get("command")
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        INSERT INTO iot_device_commands
+        (
+            device_id,
+            command_name,
+            command_status,
+            issued_by
+        )
+        VALUES (%s, %s, 'PENDING', 'Admin')
+    """, (
+        device_id,
+        command
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": "Device command queued successfully"
+    })
+
+
+
+
 @app.route("/update_iot_device_config/<int:device_id>", methods=["POST"])
 def update_iot_device_config(device_id):
     data = request.get_json()
