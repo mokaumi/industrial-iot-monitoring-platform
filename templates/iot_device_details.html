@@ -3,6 +3,7 @@
 <head>
 <title>IoT Device Details</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
 <style>
 body{
@@ -301,6 +302,47 @@ th{
 
 
 
+
+<div class="card">
+    <h3>⬆️ Firmware Update</h3>
+
+    <label>Target Version</label>
+
+    <select id="targetFirmwareVersion" style="padding:8px; width:250px;">
+        <option value="">Select firmware</option>
+    </select>
+    
+    <button onclick="requestFirmwareUpdate()">
+        Request Update
+    </button>
+
+    <p id="firmwareUpdateMessage"></p>
+</div>
+
+
+
+<div class="card">
+    <h3>📜 Firmware Update History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Current</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Requested At</th>
+                <th>Completed At</th>
+            </tr>
+        </thead>
+
+        <tbody id="firmwareUpdateTable"></tbody>
+    </table>
+</div>
+
+
+
+
 <script>
 
 
@@ -308,6 +350,130 @@ th{
 
 let telemetryChart = null;
 let allDeviceAlarmHistory = [];
+const deviceId = Number("{{ device_id }}");
+
+
+const socket = io();
+
+socket.on("connect", () => {
+    console.log("Device page socket connected:", socket.id);
+});
+
+socket.on("device_command_update", (data) => {
+    console.log("Device command update:", data);
+
+    if(data.device_id === deviceId){
+        loadDeviceCommands();
+    }
+});
+
+
+
+
+async function loadFirmwareOptions(){
+
+    const deviceType =
+        document.getElementById("deviceType").innerText;
+
+    console.log("Device Type =", deviceType);
+
+    const res =
+        await fetch(`/firmware_repository/${encodeURIComponent(deviceType)}`);
+
+    const firmware = await res.json();
+
+    console.log(firmware);
+
+    const select =
+        document.getElementById("targetFirmwareVersion");
+
+    select.innerHTML =
+        `<option value="">Select firmware</option>`;
+
+    firmware.forEach(f => {
+
+        select.innerHTML += `
+        <option value="${f.version}">
+            ${f.version}
+        </option>`;
+
+    });
+
+}
+
+
+
+
+socket.on("firmware_update", function(data){
+
+    if(data.device_id != deviceId)
+        return;
+
+    console.log("Firmware update:", data);
+
+    loadFirmwareUpdates();
+    loadDeviceDetails();
+    loadFirmwareOptions();
+});
+
+
+
+async function requestFirmwareUpdate(){
+    const targetVersion =
+        document.getElementById("targetFirmwareVersion").value;
+
+    if (!targetVersion) {
+        document.getElementById("firmwareUpdateMessage").innerText =
+            "Please select a firmware version";
+        return;
+    }
+
+    const res = await fetch(`/request_firmware_update/${deviceId}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            target_version: targetVersion
+        })
+    });
+
+    const result = await res.json();
+
+    document.getElementById("firmwareUpdateMessage").innerText =
+        result.message;
+
+    loadFirmwareUpdates();
+}
+
+async function loadFirmwareUpdates(){
+    const res = await fetch(`/iot_device_firmware_updates/${deviceId}`);
+    const updates = await res.json();
+
+    const body = document.getElementById("firmwareUpdateTable");
+    body.innerHTML = "";
+
+    updates.forEach(u => {
+        const statusClass =
+            u.update_status === "SUCCESS" ? "green" :
+            u.update_status === "FAILED" ? "red" :
+            u.update_status === "RUNNING" ? "orange" :
+            "";
+
+        body.innerHTML += `
+        <tr>
+            <td>${u.current_version}</td>
+            <td>${u.target_version}</td>
+            <td class="${statusClass}">${u.update_status}</td>
+            <td>${u.progress}%</td>
+            <td>${u.requested_at}</td>
+            <td>${u.completed_at}</td>
+        </tr>`;
+    });
+}
+
+
+
 
 
 
@@ -611,7 +777,7 @@ async function loadTelemetryChart(){
 
 
 
-const deviceId = Number("{{ device_id }}");
+
 
 async function loadDeviceDetails(){
     const res = await fetch(`/iot_device_details/${deviceId}`);
@@ -682,6 +848,8 @@ loadDeviceAlarms();
 loadDeviceAlarmSummary();
 loadDeviceAlarmHistory();
 loadDeviceCommands();
+loadFirmwareUpdates();
+loadFirmwareOptions(); 
 
 
 
@@ -694,6 +862,8 @@ setInterval(() => {
     loadDeviceAlarmSummary();
     loadDeviceAlarmHistory();
     loadDeviceCommands();
+    loadFirmwareUpdates();
+    loadFirmwareOptions();
 },10000);
 </script>
 

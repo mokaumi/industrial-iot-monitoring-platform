@@ -94,6 +94,14 @@ services:
     depends_on:
       - postgres
 
+
+  iot_firmware_update_worker:
+    build: .
+    container_name: iot_firmware_update_worker
+    command: python3 -u iot_firmware_update_worker.py
+    depends_on:
+      - postgres
+
 volumes:
   postgres_data:
 

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Firmware Repository</title>
+<style>
+body{font-family:Arial;background:#111827;color:white;padding:20px}
+.card{background:#1f2937;padding:20px;border-radius:8px;margin-top:15px}
+input,textarea{width:100%;padding:10px;margin:8px 0}
+button,.btn{background:#2563eb;color:white;padding:10px 15px;border:0;border-radius:5px;text-decoration:none}
+table{width:100%;border-collapse:collapse;margin-top:20px}
+th,td{padding:12px;border-bottom:1px solid #374151}
+th{background:#111827}
+.green{color:#00ff66}
+.red{color:#ff4444}
+</style>
+</head>
+
+<body>
+
+<h2>📦 Firmware Repository</h2>
+
+<a href="/fleet_dashboard" class="btn">Back to Fleet Dashboard</a>
+
+<div class="card">
+    <h3>Add Firmware Metadata</h3>
+
+    <input id="version" placeholder="Version e.g. v1.4.0">
+    <input id="deviceType" placeholder="Device Type e.g. Energy Meter">
+    <input id="filename" placeholder="Filename e.g. energy_meter_v140.bin">
+    <input id="filesize" placeholder="Filesize e.g. 4.8MB">
+    <input id="checksum" placeholder="Checksum e.g. CHK140">
+    <textarea id="releaseNotes" placeholder="Release notes"></textarea>
+
+    <button onclick="addFirmware()">Add Firmware</button>
+    <p id="message"></p>
+</div>
+
+<div class="card">
+    <h3>Firmware Packages</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Version</th>
+                <th>Device Type</th>
+                <th>Filename</th>
+                <th>Size</th>
+                <th>Checksum</th>
+                <th>Uploaded By</th>
+                <th>Uploaded At</th>
+                <th>Active</th>
+            </tr>
+        </thead>
+        <tbody id="firmwareTable"></tbody>
+    </table>
+</div>
+
+<script>
+async function loadFirmware(){
+    const res = await fetch("/firmware_repository");
+    const data = await res.json();
+
+    const body = document.getElementById("firmwareTable");
+    body.innerHTML = "";
+
+    data.forEach(f => {
+        body.innerHTML += `
+        <tr>
+            <td>${f.version}</td>
+            <td>${f.device_type}</td>
+            <td>${f.filename}</td>
+            <td>${f.filesize}</td>
+            <td>${f.checksum}</td>
+            <td>${f.uploaded_by}</td>
+            <td>${f.uploaded_at}</td>
+            <td class="${f.is_active ? 'green' : 'red'}">
+                ${f.is_active ? 'YES' : 'NO'}
+            </td>
+        </tr>`;
+    });
+}
+
+async function addFirmware(){
+    const payload = {
+        version: document.getElementById("version").value,
+        device_type: document.getElementById("deviceType").value,
+        filename: document.getElementById("filename").value,
+        filesize: document.getElementById("filesize").value,
+        checksum: document.getElementById("checksum").value,
+        release_notes: document.getElementById("releaseNotes").value
+    };
+
+    const res = await fetch("/upload_firmware_metadata", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(payload)
+    });
+
+    const result = await res.json();
+    document.getElementById("message").innerText = result.message;
+
+    loadFirmware();
+}
+
+loadFirmware();
+</script>
+
+</body>
+</html>

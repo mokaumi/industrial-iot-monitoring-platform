@@ -68,6 +68,7 @@ th{
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
 
 </head>
@@ -242,6 +243,8 @@ let allFleetGateways = [];
 
 
 let fleetStatusChart = null;
+
+
 
 
 
@@ -616,6 +619,20 @@ setInterval(() => {
     loadFleetEvents();
     loadFleetMap();
 }, 10000);
+
+const socket = io();
+
+socket.on("connect", () => {
+    console.log("Socket connected:", socket.id);
+});
+
+socket.on("fleet_update", (data) => {
+    console.log("Fleet update:", data);
+
+    loadFleetSummary();
+    loadFleetGateways();
+    loadFleetAlarmSummary();
+});
 </script>
 
 </body>

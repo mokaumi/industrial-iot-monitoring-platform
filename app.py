@@ -1,4 +1,5 @@
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_socketio import SocketIO
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for, session
 import paho.mqtt.client as mqtt
 import threading
@@ -31,6 +32,7 @@ from postgres_db import log_gateway_event_pg
 
 
 app = Flask(__name__)
+socketio = SocketIO(app, cors_allowed_origins="*")
 init_db()
 init_users_table()
 packets = []
@@ -46,6 +48,289 @@ register_admin_routes(app)
 # ---------------- THREADS ----------------
 # threading.Thread(target=udp_listener, daemon=True).start()
 threading.Thread(target=mqtt_listener, daemon=True).start()
+
+
+
+
+@app.route("/firmware_repository_page")
+def firmware_repository_page():
+    return render_template("firmware_repository.html")
+
+
+
+
+@app.route("/upload_firmware_metadata", methods=["POST"])
+def upload_firmware_metadata():
+
+    data = request.json
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        INSERT INTO iot_firmware_repository
+        (
+            version,
+            device_type,
+            filename,
+            filesize,
+            checksum,
+            release_notes
+        )
+        VALUES (%s,%s,%s,%s,%s,%s)
+    """, (
+        data["version"],
+        data["device_type"],
+        data["filename"],
+        data["filesize"],
+        data["checksum"],
+        data["release_notes"]
+    ))
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": "Firmware added successfully"
+    })
+
+
+
+
+@app.route("/firmware_repository/<device_type>")
+def firmware_by_device(device_type):
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            version
+        FROM iot_firmware_repository
+        WHERE device_type=%s
+          AND is_active=TRUE
+        ORDER BY version DESC
+    """, (device_type,))
+
+    firmware = [
+        {
+            "id": r[0],
+            "version": r[1]
+        }
+        for r in cur.fetchall()
+    ]
+
+    cur.close()
+    conn.close()
+
+    return jsonify(firmware)
+
+
+
+
+
+
+@app.route("/firmware_repository")
+def firmware_repository():
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            version,
+            device_type,
+            filename,
+            filesize,
+            checksum,
+            release_notes,
+            uploaded_by,
+            uploaded_at,
+            is_active
+        FROM iot_firmware_repository
+        ORDER BY device_type, version DESC
+    """)
+
+    rows = cur.fetchall()
+
+    firmware = []
+
+    for row in rows:
+        firmware.append({
+            "id": row[0],
+            "version": row[1],
+            "device_type": row[2],
+            "filename": row[3],
+            "filesize": row[4],
+            "checksum": row[5],
+            "release_notes": row[6],
+            "uploaded_by": row[7],
+            "uploaded_at": str(row[8]),
+            "is_active": row[9]
+        })
+
+    cur.close()
+    conn.close()
+
+    return jsonify(firmware)
+
+
+
+
+
+
+@app.route("/emit_firmware_update", methods=["POST"])
+def emit_firmware_update():
+
+    data = request.json
+
+    socketio.emit(
+        "firmware_update",
+        data
+    )
+
+    return jsonify(success=True)
+
+
+
+
+
+@app.route("/iot_device_firmware_updates/<int:device_id>")
+def iot_device_firmware_updates(device_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            current_version,
+            target_version,
+            update_status,
+            progress,
+            requested_by,
+            requested_at,
+            started_at,
+            completed_at,
+            error_message
+        FROM iot_device_firmware_updates
+        WHERE device_id=%s
+        ORDER BY id DESC
+        LIMIT 10
+    """, (device_id,))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "current_version": r[1],
+            "target_version": r[2],
+            "update_status": r[3],
+            "progress": r[4],
+            "requested_by": r[5],
+            "requested_at": str(r[6]),
+            "started_at": str(r[7]) if r[7] else "-",
+            "completed_at": str(r[8]) if r[8] else "-",
+            "error_message": r[9] if r[9] else "-"
+        }
+        for r in rows
+    ])
+
+
+
+
+
+@app.route("/request_firmware_update/<int:device_id>", methods=["POST"])
+def request_firmware_update(device_id):
+    data = request.get_json()
+
+    target_version = data.get("target_version")
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT firmware_version
+        FROM iot_devices
+        WHERE id=%s
+    """, (device_id,))
+
+    row = cur.fetchone()
+
+    if not row:
+        cur.close()
+        conn.close()
+        return jsonify({
+            "success": False,
+            "message": "Device not found"
+        }), 404
+
+    current_version = row[0]
+
+    cur.execute("""
+        INSERT INTO iot_device_firmware_updates
+        (
+            device_id,
+            current_version,
+            target_version,
+            update_status,
+            progress,
+            requested_by
+        )
+        VALUES (%s, %s, %s, 'PENDING', 0, 'Admin')
+    """, (
+        device_id,
+        current_version,
+        target_version
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": "Firmware update requested"
+    })
+
+
+
+
+
+@app.route("/emit_device_command_update", methods=["POST"])
+def emit_device_command_update():
+    data = request.get_json()
+
+    socketio.emit("device_command_update", data)
+
+    return jsonify({
+        "success": True,
+        "message": "Device command socket update emitted"
+    })
+
+
+
+
+@app.route("/test_socket_event")
+def test_socket_event():
+    socketio.emit("fleet_update", {
+        "message": "Fleet update received from Flask"
+    })
+
+    return jsonify({
+        "success": True,
+        "message": "Socket event emitted"
+    })
+
+
 
 
 
@@ -150,6 +435,14 @@ def issue_iot_device_command(device_id):
     ))
 
     conn.commit()
+    
+    socketio.emit("device_command_update", {
+        "device_id": device_id,
+        "command": command,
+        "status": "PENDING"
+    })
+    
+    
     cur.close()
     conn.close()
 
@@ -4801,4 +5094,4 @@ def device_status_summary():
 
 # ---------------- RUN ----------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
