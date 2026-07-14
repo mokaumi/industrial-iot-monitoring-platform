@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Firmware Campaign Dashboard</title>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<style>
+body{font-family:Arial;background:#111827;color:white;padding:20px}
+.card{background:#1f2937;padding:20px;border-radius:8px;margin-top:15px}
+table{width:100%;border-collapse:collapse;margin-top:20px}
+th,td{padding:12px;border-bottom:1px solid #374151}
+th{background:#111827}
+.green{color:#00ff66}
+.orange{color:#f59e0b}
+.red{color:#ff4444}
+.btn{background:#2563eb;color:white;padding:10px 15px;border-radius:5px;text-decoration:none}
+</style>
+</head>
+
+<body>
+
+<h2>📊 Firmware Campaign Dashboard</h2>
+
+<a href="/firmware_repository_page" class="btn">Back to Firmware Repository</a>
+
+<div class="card">
+    <h3>OTA Campaigns</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Campaign</th>
+                <th>Device Type</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Total</th>
+                <th>Pending</th>
+                <th>Running</th>
+                <th>Success</th>
+                <th>Failed</th>
+                <th>Created At</th>
+            </tr>
+        </thead>
+
+        <tbody id="campaignTable"></tbody>
+    </table>
+</div>
+
+<script>
+const socket = io();
+
+socket.on("connect", () => {
+    console.log("Campaign dashboard socket connected:", socket.id);
+});
+
+socket.on("firmware_campaign_update", () => {
+    console.log("Campaign update received");
+    loadCampaigns();
+});
+
+async function loadCampaigns(){
+    const res = await fetch("/firmware_campaigns");
+    const campaigns = await res.json();
+
+    const body = document.getElementById("campaignTable");
+    body.innerHTML = "";
+
+    campaigns.forEach(c => {
+        const statusClass =
+            c.campaign_status === "SUCCESS" ? "green" :
+            c.campaign_status === "FAILED" ? "red" :
+            c.campaign_status === "RUNNING" ? "orange" :
+            "";
+
+        body.innerHTML += `
+        <tr>
+            <td>
+                <a class="btn" href="/firmware_campaign_details_page/${c.id}">
+                    ${c.campaign_name}
+                </a>
+            </td>
+            <td>${c.device_type}</td>
+            <td>${c.target_version}</td>
+            <td class="${statusClass}">${c.campaign_status}</td>
+            <td>${c.total_devices}</td>
+            <td>${c.pending_count}</td>
+            <td>${c.running_count}</td>
+            <td>${c.success_count}</td>
+            <td>${c.failed_count}</td>
+            <td>${c.created_at}</td>
+        </tr>`;
+    });
+}
+
+loadCampaigns();
+
+setInterval(loadCampaigns, 10000);
+</script>
+
+</body>
+</html>

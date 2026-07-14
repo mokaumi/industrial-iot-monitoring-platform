@@ -10,6 +10,13 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iot_user -d iot_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 
   mosquitto:
     image: eclipse-mosquitto:2
@@ -24,16 +31,18 @@ services:
     ports:
       - "5000:5000"
     depends_on:
-      - postgres
-      - mosquitto
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
 
   gateway_offline_worker:
     build: .
     container_name: iot_gateway_offline_worker
     command: python3 -u gateway_offline_worker.py
     depends_on:
-      - postgres
-
+      postgres:
+        condition: service_healthy
 
 
 
@@ -42,8 +51,10 @@ services:
     container_name: iot_mqtt_subscriber
     command: python3 -u mqtt_subscriber.py
     depends_on:
-      - postgres
-      - mosquitto
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
 
   mqtt_device_simulator:
     build: .
@@ -68,9 +79,10 @@ services:
     container_name: iot_heartbeat_worker
     command: python3 -u heartbeat_worker.py
     depends_on:
-      - postgres
-      - mosquitto
-
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
 
 
   gateway_simulator:
@@ -85,22 +97,47 @@ services:
     container_name: iot_gateway_command_worker
     command: python3 -u gateway_command_worker.py
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
   
   iot_device_command_worker:
     build: .
     container_name: iot_device_command_worker
     command: python3 -u iot_device_command_worker.py
     depends_on:
-      - postgres
-
+      postgres:
+        condition: service_healthy
 
   iot_firmware_update_worker:
     build: .
     container_name: iot_firmware_update_worker
     command: python3 -u iot_firmware_update_worker.py
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+
+
+  firmware_campaign_worker:
+    build: .
+    container_name: firmware_campaign_worker
+    command: python3 -u firmware_campaign_worker.py
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+
+  firmware_scheduler_worker:
+    build: .
+    container_name: firmware_scheduler_worker
+    command: python3 -u firmware_scheduler_worker.py
+    depends_on:
+      postgres:
+        condition: service_healthy
+      flask_app:
+        condition: service_started
+
+  
+  
 
 volumes:
   postgres_data:

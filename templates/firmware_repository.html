@@ -37,7 +37,6 @@ th{background:#111827}
 
 <div class="card">
     <h3>Firmware Packages</h3>
-
     <table>
         <thead>
             <tr>
@@ -49,6 +48,8 @@ th{background:#111827}
                 <th>Uploaded By</th>
                 <th>Uploaded At</th>
                 <th>Active</th>
+                <th>Approval</th>
+                <th>Action</th>
             </tr>
         </thead>
         <tbody id="firmwareTable"></tbody>
@@ -56,6 +57,95 @@ th{background:#111827}
 </div>
 
 <script>
+
+
+
+
+async function updateFirmwareStatus(url, method, payload = null) {
+    try {
+        const options = {
+            method: method,
+            headers: {
+                "Content-Type": "application/json"
+            }
+        };
+
+        if (payload !== null) {
+            options.body = JSON.stringify(payload);
+        }
+
+        const res = await fetch(url, options);
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert(data.message || "Operation failed");
+            return;
+        }
+
+        alert(data.message);
+
+        loadFirmware();
+
+    } catch (error) {
+        console.error("Firmware status update failed:", error);
+        alert("Could not update firmware status");
+    }
+}
+
+
+
+
+document.addEventListener("click", async function (e) {
+    const firmwareId = Number(e.target.dataset.id);
+
+    if (e.target.classList.contains("testingBtn")) {
+        await updateFirmwareStatus(
+            `/mark_firmware_testing/${firmwareId}`,
+            "POST"
+        );
+    }
+
+    if (e.target.classList.contains("approveBtn")) {
+        await updateFirmwareStatus(
+            `/approve_firmware/${firmwareId}`,
+            "POST"
+        );
+    }
+
+    if (e.target.classList.contains("rejectBtn")) {
+        const reason = prompt("Enter rejection reason:");
+
+        if (!reason) {
+            return;
+        }
+
+        await updateFirmwareStatus(
+            `/reject_firmware/${firmwareId}`,
+            "POST",
+            { reason: reason }
+        );
+    }
+
+    if (e.target.classList.contains("archiveBtn")) {
+        const confirmed = confirm(
+            "Archive this firmware?\nIt will no longer be deployable."
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        await updateFirmwareStatus(
+            `/archive_firmware/${firmwareId}`,
+            "POST"
+        );
+    }
+});
+
+
+
+
+
 async function loadFirmware(){
     const res = await fetch("/firmware_repository");
     const data = await res.json();
@@ -64,21 +154,388 @@ async function loadFirmware(){
     body.innerHTML = "";
 
     data.forEach(f => {
-        body.innerHTML += `
-        <tr>
-            <td>${f.version}</td>
-            <td>${f.device_type}</td>
-            <td>${f.filename}</td>
-            <td>${f.filesize}</td>
-            <td>${f.checksum}</td>
-            <td>${f.uploaded_by}</td>
-            <td>${f.uploaded_at}</td>
-            <td class="${f.is_active ? 'green' : 'red'}">
-                ${f.is_active ? 'YES' : 'NO'}
-            </td>
-        </tr>`;
-    });
+    body.innerHTML += `
+    <tr>
+        <td>${f.version}</td>
+        <td>${f.device_type}</td>
+        <td>${f.filename}</td>
+        <td>${f.filesize}</td>
+        <td>${f.checksum}</td>
+        <td>${f.uploaded_by}</td>
+        <td>${f.uploaded_at}</td>
+        <td>${f.is_active ? "YES" : "NO"}</td>
+
+        <td class="${
+            f.approval_status === "APPROVED" ? "green" :
+            f.approval_status === "REJECTED" ? "red" :
+            f.approval_status === "TESTING" ? "orange" :
+            ""
+        }">
+            ${f.approval_status}
+        </td>
+
+        <td>
+            ${f.approval_status === "DRAFT" ? `
+                <button class="testingBtn"
+                    data-id="${f.id}">
+                    Send to Testing
+                </button>
+            ` : ""}
+
+            ${f.approval_status === "TESTING" ? `
+                <button class="approveBtn"
+                    data-id="${f.id}">
+                    Approve
+                </button>
+
+                <button class="rejectBtn"
+                    data-id="${f.id}">
+                    Reject
+                </button>
+            ` : ""}
+
+            ${f.approval_status === "APPROVED" ? `
+                <button class="deployBtn"
+                    data-id="${f.id}"
+                    data-type="${f.device_type}"
+                    data-version="${f.version}">
+                    Deploy
+                </button>
+
+                <button class="campaignBtn"
+                    data-id="${f.id}"
+                    data-version="${f.version}">
+                    Campaign
+                </button>
+
+                <button class="scheduleBtn"
+                    data-id="${f.id}"
+                    data-version="${f.version}">
+                    Schedule
+                </button>
+
+                <button class="archiveBtn"
+                    data-id="${f.id}">
+                    Archive
+                </button>
+            ` : ""}
+
+            ${f.approval_status === "REJECTED" ? `
+                <button class="testingBtn"
+                    data-id="${f.id}">
+                    Send to Testing Again
+                </button>
+            ` : ""}
+
+            ${f.approval_status === "ARCHIVED" ? `
+                <span>Archived</span>
+            ` : ""}
+        </td>
+    </tr>`;
+});
 }
+
+
+
+
+
+async function createCampaign(firmwareId, version) {
+
+    const campaignName = prompt(
+        `Create campaign for ${version}\n\nEnter campaign name:`
+    );
+
+    if (!campaignName) {
+        return;
+    }
+
+    const rolloutInput = prompt(
+        "Enter rollout type:\n" +
+        "IMMEDIATE\n" +
+        "BATCH\n" +
+        "PERCENTAGE\n" +
+        "CANARY",
+        "IMMEDIATE"
+    );
+
+    if (!rolloutInput) {
+        return;
+    }
+
+    const rolloutType = rolloutInput.trim().toUpperCase();
+
+    const validRolloutTypes = [
+        "IMMEDIATE",
+        "BATCH",
+        "PERCENTAGE",
+        "CANARY"
+    ];
+
+    if (!validRolloutTypes.includes(rolloutType)) {
+        alert(
+            "Invalid rollout type. Use IMMEDIATE, BATCH, PERCENTAGE, or CANARY."
+        );
+        return;
+    }
+
+    let batchSize = null;
+    let rolloutPercentage = null;
+    let canarySize = null;
+    let failureThreshold = null;
+
+
+    if (rolloutType === "BATCH") {
+        batchSize = Number(
+            prompt("Enter batch size:", "1")
+        );
+
+        if (
+            !Number.isInteger(batchSize) ||
+            batchSize < 1
+        ) {
+            alert("Batch size must be a whole number of at least 1.");
+            return;
+        }
+    }
+
+
+    if (rolloutType === "PERCENTAGE") {
+        rolloutPercentage = Number(
+            prompt("Enter rollout percentage:", "25")
+        );
+
+        if (
+            Number.isNaN(rolloutPercentage) ||
+            rolloutPercentage < 1 ||
+            rolloutPercentage > 100
+        ) {
+            alert("Percentage must be between 1 and 100.");
+            return;
+        }
+    }
+
+
+    if (rolloutType === "CANARY") {
+        canarySize = Number(
+            prompt(
+                "How many devices should be in the canary group?",
+                "1"
+            )
+        );
+
+        if (
+            !Number.isInteger(canarySize) ||
+            canarySize < 1
+        ) {
+            alert("Canary size must be a whole number of at least 1.");
+            return;
+        }
+
+        failureThreshold = Number(
+            prompt(
+                "Automatically pause when the canary failure rate exceeds what percentage?",
+                "20"
+            )
+        );
+
+        if (
+            Number.isNaN(failureThreshold) ||
+            failureThreshold < 0 ||
+            failureThreshold > 100
+        ) {
+            alert("Failure threshold must be between 0 and 100.");
+            return;
+        }
+    }
+
+
+    try {
+        const res = await fetch(
+            "/create_firmware_campaign",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    firmware_id: firmwareId,
+                    campaign_name: campaignName,
+                    rollout_type: rolloutType,
+                    batch_size: batchSize,
+                    rollout_percentage: rolloutPercentage,
+                    canary_size: canarySize,
+                    failure_threshold: failureThreshold
+                })
+            }
+        );
+
+        const result = await res.json();
+
+        if (!res.ok) {
+            alert(result.message || "Campaign creation failed");
+            return;
+        }
+
+        alert(result.message);
+
+        window.location.href =
+            "/firmware_campaign_dashboard";
+
+    } catch (error) {
+        console.error(
+            "Campaign creation failed:",
+            error
+        );
+
+        alert("Could not create campaign");
+    }
+}
+
+
+
+
+document.addEventListener("click", function (e) {
+    console.log("Clicked:", e.target);
+
+    if (e.target.classList.contains("deployBtn")) {
+        const firmwareId = Number(e.target.dataset.id);
+        const deviceType = e.target.dataset.type;
+        const version = e.target.dataset.version;
+
+        deployFirmware(firmwareId, deviceType, version);
+    }
+});
+
+
+
+
+document.addEventListener("click", function(e){
+
+    if(e.target.classList.contains("scheduleBtn")){
+
+        const firmwareId = Number(e.target.dataset.id);
+        const version = e.target.dataset.version;
+
+        scheduleFirmware(firmwareId, version);
+
+    }
+
+});
+
+
+
+
+document.addEventListener("click", function(e){
+
+    if(e.target.classList.contains("campaignBtn")){
+
+        const firmwareId = Number(e.target.dataset.id);
+        const version = e.target.dataset.version;
+
+        createCampaign(firmwareId, version);
+    }
+
+});
+
+
+function deployFirmwareFromButton(button){
+    const firmwareId = Number(button.dataset.id);
+    const deviceType = button.dataset.type;
+    const version = button.dataset.version;
+
+    deployFirmware(firmwareId, deviceType, version);
+}
+
+async function deployFirmware(firmwareId, deviceType, version){
+
+    const res =
+        await fetch(`/devices_by_type/${encodeURIComponent(deviceType)}`);
+
+    const devices = await res.json();
+
+    if(devices.length === 0){
+        alert("No devices found for " + deviceType);
+        return;
+    }
+
+    let message = `Deploy ${version} to which device?\n\n`;
+
+    devices.forEach(d => {
+        message += `${d.id}. ${d.device_name} (${d.firmware_version}) - ${d.status}\n`;
+    });
+
+    const deviceId = prompt(message + "\nEnter device ID:");
+
+    if(!deviceId) return;
+
+    const deployRes = await fetch("/deploy_repository_firmware", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            firmware_id: firmwareId,
+            device_id: Number(deviceId)
+        })
+    });
+
+    const result = await deployRes.json();
+    alert(result.message);
+}
+
+
+
+
+async function scheduleFirmware(firmwareId, version){
+
+    const campaignName = prompt(
+        "Campaign Name:",
+        "Night Rollout " + version
+    );
+
+    if(!campaignName)
+        return;
+
+    const date = prompt(
+        "Enter Date (YYYY-MM-DD)"
+    );
+
+    if(!date)
+        return;
+
+    const time = prompt(
+        "Enter Time (HH:MM)"
+    );
+
+    if(!time)
+        return;
+
+    const scheduledTime = `${date} ${time}:00`;
+
+    const res = await fetch("/schedule_firmware_update",{
+
+        method:"POST",
+
+        headers:{
+            "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+
+            firmware_id:firmwareId,
+
+            campaign_name:campaignName,
+
+            scheduled_time:scheduledTime
+
+        })
+
+    });
+
+    const result = await res.json();
+
+    alert(result.message);
+
+}
+
 
 async function addFirmware(){
     const payload = {

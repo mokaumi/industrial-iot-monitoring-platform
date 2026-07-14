@@ -63,6 +63,929 @@ th{
 }
 
 
+
+select{
+    width:100%;
+    padding:10px;
+    margin-top:8px;
+    background:#111827;
+    color:white;
+    border:1px solid #374151;
+    border-radius:5px;
+}
+
+
+
+
+</style>
+</head>
+
+<body>
+
+<h2>📟 IoT Device Details</h2>
+
+<a href="/gateway_details_page/1" class="btn">Back to Gateway</a>
+
+<div class="card">
+    <h3 id="deviceName">Loading...</h3>
+    <p><b>EUI:</b> <span id="deviceEui">--</span></p>
+    <p><b>Type:</b> <span id="deviceType">--</span></p>
+    <p><b>Gateway:</b> <span id="gatewayName">--</span></p>
+    <p><b>Site:</b> <span id="site">--</span></p>
+</div>
+
+<div class="grid">
+    <div class="card">
+        Status<br>
+        <span class="value" id="status">--</span>
+    </div>
+
+    <div class="card">
+        Battery<br>
+        <span class="value" id="battery">--</span>
+    </div>
+
+    <div class="card">
+        RSSI<br>
+        <span class="value" id="rssi">--</span>
+    </div>
+
+    <div class="card">
+        SNR<br>
+        <span class="value" id="snr">--</span>
+    </div>
+</div>
+
+<div class="card">
+    <p><b>Firmware:</b> <span id="firmware">--</span></p>
+    <p><b>Last Seen:</b> <span id="lastSeen">--</span></p>
+    <p><b>Active:</b> <span id="isActive">--</span></p>
+</div>
+
+
+
+
+<div class="card">
+
+    <h3>📈 Device Telemetry</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+                <th>Unit</th>
+                <th>Recorded At</th>
+            </tr>
+        </thead>
+
+        <tbody id="telemetryTable">
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+
+<div class="grid">
+    <div class="card">
+        Voltage<br>
+        <span class="value" id="telemetryVoltage">--</span>
+    </div>
+
+    <div class="card">
+        Current<br>
+        <span class="value" id="telemetryCurrent">--</span>
+    </div>
+
+    <div class="card">
+        Power<br>
+        <span class="value" id="telemetryPower">--</span>
+    </div>
+
+    <div class="card">
+        Energy<br>
+        <span class="value" id="telemetryEnergy">--</span>
+    </div>
+</div>
+
+
+
+
+
+
+<div class="card">
+    <h3>📊 Device Telemetry Chart</h3>
+    <div style="height:350px;">
+        <canvas id="telemetryChart"></canvas>
+    </div>
+</div>
+
+
+
+<div class="grid">
+    <div class="card">
+        Total Device Alarms<br>
+        <span class="value" id="totalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Critical<br>
+        <span class="value red" id="criticalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Warning<br>
+        <span class="value orange" id="warningDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Active<br>
+        <span class="value" id="activeDeviceAlarms">--</span>
+    </div>
+</div>
+
+
+
+
+<div class="card">
+    <h3>🚨 Device Active Alarms</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Alarm</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Description</th>
+                <th>Last Seen</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceAlarmTable"></tbody>
+    </table>
+</div>
+
+
+
+
+<div style="margin-bottom:15px;">
+    <select id="deviceAlarmHistoryFilter" onchange="renderDeviceAlarmHistory()" style="padding:8px;">
+        <option value="">All Alarms</option>
+        <option value="ACTIVE">ACTIVE</option>
+        <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
+    </select>
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>📜 Device Alarm History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Alarm</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Description</th>
+                <th>First Seen</th>
+                <th>Last Seen</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceAlarmHistoryTable"></tbody>
+    </table>
+</div>
+
+
+
+<div class="card">
+
+    <h3>🛰 Device Command Center</h3>
+
+    <button onclick="sendDeviceCommand('Ping Device')">
+        Ping Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Restart Device')">
+        Restart Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Request Telemetry')">
+        Request Telemetry
+    </button>
+
+</div>
+
+
+
+<div class="card">
+
+    <h3>📜 Device Command History</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Command</th>
+                <th>Status</th>
+                <th>Issued By</th>
+                <th>Issued At</th>
+                <th>Completed</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceCommandTable">
+
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>⬆️ Firmware Update</h3>
+
+    <label>Target Version</label>
+
+    <select id="targetFirmwareVersion" style="padding:8px; width:250px;">
+        <option value="">Select firmware</option>
+    </select>
+    
+    <button onclick="requestFirmwareUpdate()">
+        Request Update
+    </button>
+
+    <p id="firmwareUpdateMessage"></p>
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>Firmware Rollback and Recovery</h3>
+
+    <p>
+        <b>Current Firmware:</b>
+        <span id="rollbackCurrentVersion">--</span>
+    </p>
+
+    <label for="rollbackVersion">
+        <b>Known-Good Rollback Version</b>
+    </label>
+
+    <select id="rollbackVersion">
+        <option value="">Select rollback version</option>
+    </select>
+
+    <textarea id="rollbackReason" placeholder="Enter rollback reason"
+        style="width:100%; margin-top:10px; padding:10px;"></textarea>
+
+    <button onclick="requestFirmwareRollback()" style="margin-top:10px; background:#dc2626;">
+        Roll Back Firmware
+    </button>
+
+    <p id="rollbackMessage"></p>
+</div>
+
+
+
+
+
+
+<div class="card">
+    <h3>📜 Firmware Update History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Current</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Requested At</th>
+                <th>Completed At</th>
+            </tr>
+        </thead>
+
+        <tbody id="firmwareUpdateTable"></tbody>
+    </table>
+</div>
+
+
+
+
+<script>
+
+
+
+
+let telemetryChart = null;
+let allDeviceAlarmHistory = [];
+const deviceId = Number("{{ device_id }}");
+
+
+const socket = io();
+
+socket.on("connect", () => {
+    console.log("Device page socket connected:", socket.id);
+});
+
+socket.on("device_command_update", (data) => {
+    console.log("Device command update:", data);
+
+    if(data.device_id === deviceId){
+        loadDeviceCommands();
+    }
+});
+
+
+
+
+    function versionToNumber(version) {
+        return Number(
+            version.replace("v", "").replaceAll(".", "")
+        );
+    }
+
+    async function loadFirmwareOptions() {
+
+        const deviceType =
+            document.getElementById("deviceType").innerText;
+
+        const currentFirmware =
+            document.getElementById("firmware").innerText;
+
+        const res =
+            await fetch(`/firmware_repository/${encodeURIComponent(deviceType)}`);
+
+        const firmware = await res.json();
+
+        const select =
+            document.getElementById("targetFirmwareVersion");
+
+        select.innerHTML =
+            `<option value="">Select firmware</option>`;
+
+        firmware
+            .filter(f =>
+                versionToNumber(f.version) >
+                versionToNumber(currentFirmware)
+            )
+            .forEach(f => {
+                select.innerHTML += `
+            <option value="${f.version}">
+                ${f.version}
+            </option>`;
+            });
+    }
+
+
+socket.on("firmware_update", function(data){
+
+    if(data.device_id != deviceId)
+        return;
+
+    console.log("Firmware update:", data);
+
+    loadFirmwareUpdates();
+    loadDeviceDetails();
+    loadFirmwareOptions();
+});
+
+
+
+async function requestFirmwareUpdate(){
+    const targetVersion =
+        document.getElementById("targetFirmwareVersion").value;
+
+    if (!targetVersion) {
+        document.getElementById("firmwareUpdateMessage").innerText =
+            "Please select a firmware version";
+        return;
+    }
+
+    const res = await fetch(`/request_firmware_update/${deviceId}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            target_version: targetVersion
+        })
+    });
+
+    const result = await res.json();
+
+    document.getElementById("firmwareUpdateMessage").innerText =
+        result.message;
+
+    loadFirmwareUpdates();
+}
+
+async function loadFirmwareUpdates(){
+    const res = await fetch(`/iot_device_firmware_updates/${deviceId}`);
+    const updates = await res.json();
+
+    const body = document.getElementById("firmwareUpdateTable");
+    body.innerHTML = "";
+
+    updates.forEach(u => {
+        const statusClass =
+            u.update_status === "SUCCESS" ? "green" :
+            u.update_status === "FAILED" ? "red" :
+            u.update_status === "RUNNING" ? "orange" :
+            "";
+
+        body.innerHTML += `
+        <tr>
+            <td>${u.current_version}</td>
+            <td>${u.target_version}</td>
+            <td class="${statusClass}">${u.update_status}</td>
+            <td>${u.progress}%</td>
+            <td>${u.requested_at}</td>
+            <td>${u.completed_at}</td>
+        </tr>`;
+    });
+}
+
+
+
+
+
+
+
+async function retryDeviceCommand(commandId){
+
+    await fetch(`/retry_iot_device_command/${commandId}`,{
+        method:"POST"
+    });
+
+    loadDeviceCommands();
+
+}
+
+
+
+
+async function loadDeviceCommands(){
+
+    const response =
+        await fetch(`/iot_device_command_queue/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("deviceCommandTable");
+
+    body.innerHTML = "";
+
+    data.forEach(c=>{
+
+        let statusClass="";
+
+        if (c.command_status === "SUCCESS")
+            statusClass = "green";
+
+        else if (c.command_status === "FAILED")
+            statusClass = "red";
+
+        else if (c.command_status === "RUNNING")
+            statusClass = "orange";
+
+        else
+            statusClass = "";
+
+        body.innerHTML += `
+        <tr>
+
+            <td>${c.command_name}</td>
+
+            <td class="${statusClass}">
+                ${c.command_status}
+            </td>
+
+            <td>${c.issued_by}</td>
+
+            <td>${c.issued_at}</td>
+
+            <td>${c.completed_at}</td>
+
+                <td>
+
+                    ${c.command_status === "FAILED"
+                                    ?
+                                    `<button onclick="retryDeviceCommand(${c.id})">
+                            Retry
+                        </button>`
+                                    :
+                                    "-"
+                    }
+
+                </td>
+
+        </tr>
+        `;
+
+    });
+
+}
+
+
+
+
+async function sendDeviceCommand(command){
+
+    await fetch(`/issue_iot_device_command/${deviceId}`,{
+
+        method:"POST",
+
+        headers:{
+            "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+            command:command
+        })
+
+    });
+
+    loadDeviceCommands();
+
+}
+
+
+
+
+async function loadDeviceAlarmHistory(){
+    const res = await fetch(`/iot_device_alarm_history/${deviceId}`);
+    allDeviceAlarmHistory = await res.json();
+
+    renderDeviceAlarmHistory();
+}
+
+
+
+function renderDeviceAlarmHistory(){
+    const filter =
+        document.getElementById("deviceAlarmHistoryFilter").value;
+
+    const body =
+        document.getElementById("deviceAlarmHistoryTable");
+
+    body.innerHTML = "";
+
+    allDeviceAlarmHistory
+        .filter(a => !filter || a.status === filter)
+        .forEach(a => {
+            const severityClass =
+                a.severity === "CRITICAL" ? "red" :
+                a.severity === "WARNING" ? "orange" :
+                "green";
+
+            body.innerHTML += `
+            <tr>
+                <td>${a.alarm_name}</td>
+                <td class="${severityClass}">${a.severity}</td>
+                <td>${a.status}</td>
+                <td>${a.description}</td>
+                <td>${a.first_seen}</td>
+                <td>${a.last_seen}</td>
+            </tr>`;
+        });
+}
+
+
+
+async function ackDeviceAlarm(alarmId){
+    const res = await fetch(`/ack_iot_device_alarm/${alarmId}`, {
+        method: "POST"
+    });
+
+    const result = await res.json();
+
+    alert(result.message);
+
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+}
+
+
+
+
+async function loadDeviceAlarmSummary(){
+    const res = await fetch(`/iot_device_alarm_summary/${deviceId}`);
+    const data = await res.json();
+
+    document.getElementById("totalDeviceAlarms").innerText = data.total;
+    document.getElementById("criticalDeviceAlarms").innerText = data.critical;
+    document.getElementById("warningDeviceAlarms").innerText = data.warning;
+    document.getElementById("activeDeviceAlarms").innerText = data.active;
+}
+
+
+
+
+async function loadDeviceAlarms(){
+    const res = await fetch(`/iot_device_alarms/${deviceId}`);
+    const alarms = await res.json();
+
+    const body = document.getElementById("deviceAlarmTable");
+    body.innerHTML = "";
+
+    if(alarms.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="5">No active device alarms</td>
+        </tr>`;
+        return;
+    }
+
+    alarms.forEach(a => {
+        const severityClass =
+            a.severity === "CRITICAL" ? "red" :
+            a.severity === "WARNING" ? "orange" :
+            "green";
+
+        body.innerHTML += `
+        <tr>
+            <td>${a.alarm_name}</td>
+            <td class="${severityClass}">${a.severity}</td>
+            <td>${a.status}</td>
+            <td>${a.description}</td>
+            <td>${a.last_seen}</td>
+            <td>
+                <button onclick="ackDeviceAlarm(${a.id})">
+                    ACK
+                </button>
+            </td>
+
+        </tr>`;
+    });
+}
+
+
+
+async function loadTelemetrySummary(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const findValue = (key) => {
+        const item = data.find(t => t.telemetry_key === key);
+        return item ? `${item.telemetry_value} ${item.unit}` : "--";
+    };
+
+    document.getElementById("telemetryVoltage").innerText =
+        findValue("voltage");
+
+    document.getElementById("telemetryCurrent").innerText =
+        findValue("current");
+
+    document.getElementById("telemetryPower").innerText =
+        findValue("power");
+
+    document.getElementById("telemetryEnergy").innerText =
+        findValue("energy");
+}
+
+
+
+
+
+
+async function loadTelemetryChart(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const labels = data.map(t => t.telemetry_key);
+    const values = data.map(t => t.telemetry_value);
+
+    const ctx =
+        document.getElementById("telemetryChart")
+        .getContext("2d");
+
+    if(telemetryChart){
+        telemetryChart.destroy();
+    }
+
+    telemetryChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Telemetry Value",
+                data: values
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            plugins: {
+                legend: {
+                    labels: {
+                        color: "white"
+                    }
+                }
+            },
+
+            scales: {
+                x: {
+                    ticks: {
+                        color: "white"
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: "white"
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+
+
+
+
+async function loadDeviceDetails(){
+    const res = await fetch(`/iot_device_details/${deviceId}`);
+    const d = await res.json();
+
+    document.getElementById("deviceName").innerText = d.device_name;
+    document.getElementById("deviceEui").innerText = d.device_eui;
+    document.getElementById("deviceType").innerText = d.device_type;
+    document.getElementById("gatewayName").innerText = d.gateway_name;
+    document.getElementById("site").innerText = d.site;
+
+    const statusEl = document.getElementById("status");
+    statusEl.innerText = d.status;
+
+    statusEl.className =
+        d.status === "ONLINE" ? "value green" :
+        d.status === "OFFLINE" ? "value red" :
+        "value orange";
+
+    document.getElementById("battery").innerText = d.battery_level + "%";
+    document.getElementById("rssi").innerText = d.rssi;
+    document.getElementById("snr").innerText = d.snr;
+    document.getElementById("firmware").innerText = d.firmware_version;
+    document.getElementById("lastSeen").innerText = d.last_seen;
+    document.getElementById("isActive").innerText = d.is_active ? "YES" : "NO";
+}
+
+
+async function loadTelemetry(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("telemetryTable");
+
+    body.innerHTML = "";
+
+    if(data.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="4">No telemetry available</td>
+        </tr>`;
+        return;
+    }
+
+    data.forEach(t=>{
+
+        body.innerHTML += `
+        <tr>
+            <td>${t.telemetry_key}</td>
+            <td>${t.telemetry_value}</td>
+            <td>${t.unit}</td>
+            <td>${t.recorded_at}</td>
+        </tr>`;
+    });
+}
+
+
+
+loadDeviceDetails();
+loadTelemetry();
+loadTelemetryChart();
+loadTelemetrySummary();
+loadDeviceAlarms();
+loadDeviceAlarmSummary();
+loadDeviceAlarmHistory();
+loadDeviceCommands();
+loadFirmwareUpdates();
+loadFirmwareOptions(); 
+
+
+
+setInterval(() => {
+    loadDeviceDetails();
+    loadTelemetry();
+    loadTelemetryChart();
+    loadTelemetrySummary();
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+    loadDeviceAlarmHistory();
+    loadDeviceCommands();
+    loadFirmwareUpdates();
+    loadFirmwareOptions();
+},10000);
+</script>
+
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+<title>IoT Device Details</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<style>
+body{
+    font-family:Arial;
+    background:#111827;
+    color:white;
+    padding:20px;
+}
+
+.card{
+    background:#1f2937;
+    padding:20px;
+    border-radius:8px;
+    margin-top:15px;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:15px;
+}
+
+.value{
+    font-size:32px;
+    font-weight:bold;
+}
+
+.green{color:#00ff66;}
+.orange{color:#f59e0b;}
+.red{color:#ff4444;}
+
+.btn{
+    background:#2563eb;
+    color:white;
+    padding:8px 12px;
+    border-radius:5px;
+    text-decoration:none;
+}
+
+
+
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+
+th, td{
+    padding:12px;
+    border-bottom:1px solid #374151;
+    text-align:left;
+}
+
+th{
+    background:#111827;
+}
+
+
 </style>
 </head>
 
@@ -370,38 +1293,5398 @@ socket.on("device_command_update", (data) => {
 
 
 
-async function loadFirmwareOptions(){
+    function versionToNumber(version) {
+        return Number(
+            version.replace("v", "").replaceAll(".", "")
+        );
+    }
 
-    const deviceType =
-        document.getElementById("deviceType").innerText;
+    async function loadFirmwareOptions() {
 
-    console.log("Device Type =", deviceType);
+        const deviceType =
+            document.getElementById("deviceType").innerText;
 
-    const res =
-        await fetch(`/firmware_repository/${encodeURIComponent(deviceType)}`);
+        const currentFirmware =
+            document.getElementById("firmware").innerText;
 
-    const firmware = await res.json();
+        const res =
+            await fetch(`/firmware_repository/${encodeURIComponent(deviceType)}`);
 
-    console.log(firmware);
+        const firmware = await res.json();
 
-    const select =
-        document.getElementById("targetFirmwareVersion");
+        const select =
+            document.getElementById("targetFirmwareVersion");
 
-    select.innerHTML =
-        `<option value="">Select firmware</option>`;
+        select.innerHTML =
+            `<option value="">Select firmware</option>`;
 
-    firmware.forEach(f => {
+        firmware
+            .filter(f =>
+                versionToNumber(f.version) >
+                versionToNumber(currentFirmware)
+            )
+            .forEach(f => {
+                select.innerHTML += `
+            <option value="${f.version}">
+                ${f.version}
+            </option>`;
+            });
+    }
 
-        select.innerHTML += `
-        <option value="${f.version}">
-            ${f.version}
-        </option>`;
+
+socket.on("firmware_update", function(data){
+
+    if(data.device_id != deviceId)
+        return;
+
+    console.log("Firmware update:", data);
+
+    loadFirmwareUpdates();
+    loadDeviceDetails();
+    loadFirmwareOptions();
+});
+
+
+
+async function requestFirmwareUpdate(){
+    const targetVersion =
+        document.getElementById("targetFirmwareVersion").value;
+
+    if (!targetVersion) {
+        document.getElementById("firmwareUpdateMessage").innerText =
+            "Please select a firmware version";
+        return;
+    }
+
+    const res = await fetch(`/request_firmware_update/${deviceId}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            target_version: targetVersion
+        })
+    });
+
+    const result = await res.json();
+
+    document.getElementById("firmwareUpdateMessage").innerText =
+        result.message;
+
+    loadFirmwareUpdates();
+}
+
+async function loadFirmwareUpdates(){
+    const res = await fetch(`/iot_device_firmware_updates/${deviceId}`);
+    const updates = await res.json();
+
+    const body = document.getElementById("firmwareUpdateTable");
+    body.innerHTML = "";
+
+    updates.forEach(u => {
+        const statusClass =
+            u.update_status === "SUCCESS" ? "green" :
+            u.update_status === "FAILED" ? "red" :
+            u.update_status === "RUNNING" ? "orange" :
+            "";
+
+        body.innerHTML += `
+        <tr>
+            <td>${u.current_version}</td>
+            <td>${u.target_version}</td>
+            <td class="${statusClass}">${u.update_status}</td>
+            <td>${u.progress}%</td>
+            <td>${u.requested_at}</td>
+            <td>${u.completed_at}</td>
+        </tr>`;
+    });
+}
+
+
+
+
+
+
+
+async function retryDeviceCommand(commandId){
+
+    await fetch(`/retry_iot_device_command/${commandId}`,{
+        method:"POST"
+    });
+
+    loadDeviceCommands();
+
+}
+
+
+
+
+async function loadDeviceCommands(){
+
+    const response =
+        await fetch(`/iot_device_command_queue/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("deviceCommandTable");
+
+    body.innerHTML = "";
+
+    data.forEach(c=>{
+
+        let statusClass="";
+
+        if (c.command_status === "SUCCESS")
+            statusClass = "green";
+
+        else if (c.command_status === "FAILED")
+            statusClass = "red";
+
+        else if (c.command_status === "RUNNING")
+            statusClass = "orange";
+
+        else
+            statusClass = "";
+
+        body.innerHTML += `
+        <tr>
+
+            <td>${c.command_name}</td>
+
+            <td class="${statusClass}">
+                ${c.command_status}
+            </td>
+
+            <td>${c.issued_by}</td>
+
+            <td>${c.issued_at}</td>
+
+            <td>${c.completed_at}</td>
+
+                <td>
+
+                    ${c.command_status === "FAILED"
+                                    ?
+                                    `<button onclick="retryDeviceCommand(${c.id})">
+                            Retry
+                        </button>`
+                                    :
+                                    "-"
+                    }
+
+                </td>
+
+        </tr>
+        `;
 
     });
 
 }
 
 
+
+
+async function sendDeviceCommand(command){
+
+    await fetch(`/issue_iot_device_command/${deviceId}`,{
+
+        method:"POST",
+
+        headers:{
+            "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+            command:command
+        })
+
+    });
+
+    loadDeviceCommands();
+
+}
+
+
+
+
+async function loadDeviceAlarmHistory(){
+    const res = await fetch(`/iot_device_alarm_history/${deviceId}`);
+    allDeviceAlarmHistory = await res.json();
+
+    renderDeviceAlarmHistory();
+}
+
+
+
+function renderDeviceAlarmHistory(){
+    const filter =
+        document.getElementById("deviceAlarmHistoryFilter").value;
+
+    const body =
+        document.getElementById("deviceAlarmHistoryTable");
+
+    body.innerHTML = "";
+
+    allDeviceAlarmHistory
+        .filter(a => !filter || a.status === filter)
+        .forEach(a => {
+            const severityClass =
+                a.severity === "CRITICAL" ? "red" :
+                a.severity === "WARNING" ? "orange" :
+                "green";
+
+            body.innerHTML += `
+            <tr>
+                <td>${a.alarm_name}</td>
+                <td class="${severityClass}">${a.severity}</td>
+                <td>${a.status}</td>
+                <td>${a.description}</td>
+                <td>${a.first_seen}</td>
+                <td>${a.last_seen}</td>
+            </tr>`;
+        });
+}
+
+
+
+async function ackDeviceAlarm(alarmId){
+    const res = await fetch(`/ack_iot_device_alarm/${alarmId}`, {
+        method: "POST"
+    });
+
+    const result = await res.json();
+
+    alert(result.message);
+
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+}
+
+
+
+
+async function loadDeviceAlarmSummary(){
+    const res = await fetch(`/iot_device_alarm_summary/${deviceId}`);
+    const data = await res.json();
+
+    document.getElementById("totalDeviceAlarms").innerText = data.total;
+    document.getElementById("criticalDeviceAlarms").innerText = data.critical;
+    document.getElementById("warningDeviceAlarms").innerText = data.warning;
+    document.getElementById("activeDeviceAlarms").innerText = data.active;
+}
+
+
+
+
+async function loadDeviceAlarms(){
+    const res = await fetch(`/iot_device_alarms/${deviceId}`);
+    const alarms = await res.json();
+
+    const body = document.getElementById("deviceAlarmTable");
+    body.innerHTML = "";
+
+    if(alarms.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="5">No active device alarms</td>
+        </tr>`;
+        return;
+    }
+
+    alarms.forEach(a => {
+        const severityClass =
+            a.severity === "CRITICAL" ? "red" :
+            a.severity === "WARNING" ? "orange" :
+            "green";
+
+        body.innerHTML += `
+        <tr>
+            <td>${a.alarm_name}</td>
+            <td class="${severityClass}">${a.severity}</td>
+            <td>${a.status}</td>
+            <td>${a.description}</td>
+            <td>${a.last_seen}</td>
+            <td>
+                <button onclick="ackDeviceAlarm(${a.id})">
+                    ACK
+                </button>
+            </td>
+
+        </tr>`;
+    });
+}
+
+
+
+async function loadTelemetrySummary(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const findValue = (key) => {
+        const item = data.find(t => t.telemetry_key === key);
+        return item ? `${item.telemetry_value} ${item.unit}` : "--";
+    };
+
+    document.getElementById("telemetryVoltage").innerText =
+        findValue("voltage");
+
+    document.getElementById("telemetryCurrent").innerText =
+        findValue("current");
+
+    document.getElementById("telemetryPower").innerText =
+        findValue("power");
+
+    document.getElementById("telemetryEnergy").innerText =
+        findValue("energy");
+}
+
+
+
+
+
+
+async function loadTelemetryChart(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const labels = data.map(t => t.telemetry_key);
+    const values = data.map(t => t.telemetry_value);
+
+    const ctx =
+        document.getElementById("telemetryChart")
+        .getContext("2d");
+
+    if(telemetryChart){
+        telemetryChart.destroy();
+    }
+
+    telemetryChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Telemetry Value",
+                data: values
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            plugins: {
+                legend: {
+                    labels: {
+                        color: "white"
+                    }
+                }
+            },
+
+            scales: {
+                x: {
+                    ticks: {
+                        color: "white"
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: "white"
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+
+
+
+
+async function loadDeviceDetails(){
+    const res = await fetch(`/iot_device_details/${deviceId}`);
+    const d = await res.json();
+
+    document.getElementById("deviceName").innerText = d.device_name;
+    document.getElementById("deviceEui").innerText = d.device_eui;
+    document.getElementById("deviceType").innerText = d.device_type;
+    document.getElementById("gatewayName").innerText = d.gateway_name;
+    document.getElementById("site").innerText = d.site;
+
+    const statusEl = document.getElementById("status");
+    statusEl.innerText = d.status;
+
+    statusEl.className =
+        d.status === "ONLINE" ? "value green" :
+        d.status === "OFFLINE" ? "value red" :
+        "value orange";
+
+    document.getElementById("battery").innerText = d.battery_level + "%";
+    document.getElementById("rssi").innerText = d.rssi;
+    document.getElementById("snr").innerText = d.snr;
+    document.getElementById("firmware").innerText = d.firmware_version;
+    document.getElementById("lastSeen").innerText = d.last_seen;
+    document.getElementById("isActive").innerText = d.is_active ? "YES" : "NO";
+}
+
+
+async function loadTelemetry(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("telemetryTable");
+
+    body.innerHTML = "";
+
+    if(data.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="4">No telemetry available</td>
+        </tr>`;
+        return;
+    }
+
+    data.forEach(t=>{
+
+        body.innerHTML += `
+        <tr>
+            <td>${t.telemetry_key}</td>
+            <td>${t.telemetry_value}</td>
+            <td>${t.unit}</td>
+            <td>${t.recorded_at}</td>
+        </tr>`;
+    });
+}
+
+
+
+loadDeviceDetails();
+loadTelemetry();
+loadTelemetryChart();
+loadTelemetrySummary();
+loadDeviceAlarms();
+loadDeviceAlarmSummary();
+loadDeviceAlarmHistory();
+loadDeviceCommands();
+loadFirmwareUpdates();
+loadFirmwareOptions(); 
+
+
+
+setInterval(() => {
+    loadDeviceDetails();
+    loadTelemetry();
+    loadTelemetryChart();
+    loadTelemetrySummary();
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+    loadDeviceAlarmHistory();
+    loadDeviceCommands();
+    loadFirmwareUpdates();
+    loadFirmwareOptions();
+},10000);
+</script>
+
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+<title>IoT Device Details</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<style>
+body{
+    font-family:Arial;
+    background:#111827;
+    color:white;
+    padding:20px;
+}
+
+.card{
+    background:#1f2937;
+    padding:20px;
+    border-radius:8px;
+    margin-top:15px;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:15px;
+}
+
+.value{
+    font-size:32px;
+    font-weight:bold;
+}
+
+.green{color:#00ff66;}
+.orange{color:#f59e0b;}
+.red{color:#ff4444;}
+
+.btn{
+    background:#2563eb;
+    color:white;
+    padding:8px 12px;
+    border-radius:5px;
+    text-decoration:none;
+}
+
+
+
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+
+th, td{
+    padding:12px;
+    border-bottom:1px solid #374151;
+    text-align:left;
+}
+
+th{
+    background:#111827;
+}
+
+
+</style>
+</head>
+
+<body>
+
+<h2>📟 IoT Device Details</h2>
+
+<a href="/gateway_details_page/1" class="btn">Back to Gateway</a>
+
+<div class="card">
+    <h3 id="deviceName">Loading...</h3>
+    <p><b>EUI:</b> <span id="deviceEui">--</span></p>
+    <p><b>Type:</b> <span id="deviceType">--</span></p>
+    <p><b>Gateway:</b> <span id="gatewayName">--</span></p>
+    <p><b>Site:</b> <span id="site">--</span></p>
+</div>
+
+<div class="grid">
+    <div class="card">
+        Status<br>
+        <span class="value" id="status">--</span>
+    </div>
+
+    <div class="card">
+        Battery<br>
+        <span class="value" id="battery">--</span>
+    </div>
+
+    <div class="card">
+        RSSI<br>
+        <span class="value" id="rssi">--</span>
+    </div>
+
+    <div class="card">
+        SNR<br>
+        <span class="value" id="snr">--</span>
+    </div>
+</div>
+
+<div class="card">
+    <p><b>Firmware:</b> <span id="firmware">--</span></p>
+    <p><b>Last Seen:</b> <span id="lastSeen">--</span></p>
+    <p><b>Active:</b> <span id="isActive">--</span></p>
+</div>
+
+
+
+
+<div class="card">
+
+    <h3>📈 Device Telemetry</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+                <th>Unit</th>
+                <th>Recorded At</th>
+            </tr>
+        </thead>
+
+        <tbody id="telemetryTable">
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+
+<div class="grid">
+    <div class="card">
+        Voltage<br>
+        <span class="value" id="telemetryVoltage">--</span>
+    </div>
+
+    <div class="card">
+        Current<br>
+        <span class="value" id="telemetryCurrent">--</span>
+    </div>
+
+    <div class="card">
+        Power<br>
+        <span class="value" id="telemetryPower">--</span>
+    </div>
+
+    <div class="card">
+        Energy<br>
+        <span class="value" id="telemetryEnergy">--</span>
+    </div>
+</div>
+
+
+
+
+
+
+<div class="card">
+    <h3>📊 Device Telemetry Chart</h3>
+    <div style="height:350px;">
+        <canvas id="telemetryChart"></canvas>
+    </div>
+</div>
+
+
+
+<div class="grid">
+    <div class="card">
+        Total Device Alarms<br>
+        <span class="value" id="totalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Critical<br>
+        <span class="value red" id="criticalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Warning<br>
+        <span class="value orange" id="warningDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Active<br>
+        <span class="value" id="activeDeviceAlarms">--</span>
+    </div>
+</div>
+
+
+
+
+<div class="card">
+    <h3>🚨 Device Active Alarms</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Alarm</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Description</th>
+                <th>Last Seen</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceAlarmTable"></tbody>
+    </table>
+</div>
+
+
+
+
+<div style="margin-bottom:15px;">
+    <select id="deviceAlarmHistoryFilter" onchange="renderDeviceAlarmHistory()" style="padding:8px;">
+        <option value="">All Alarms</option>
+        <option value="ACTIVE">ACTIVE</option>
+        <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
+    </select>
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>📜 Device Alarm History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Alarm</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Description</th>
+                <th>First Seen</th>
+                <th>Last Seen</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceAlarmHistoryTable"></tbody>
+    </table>
+</div>
+
+
+
+<div class="card">
+
+    <h3>🛰 Device Command Center</h3>
+
+    <button onclick="sendDeviceCommand('Ping Device')">
+        Ping Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Restart Device')">
+        Restart Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Request Telemetry')">
+        Request Telemetry
+    </button>
+
+</div>
+
+
+
+<div class="card">
+
+    <h3>📜 Device Command History</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Command</th>
+                <th>Status</th>
+                <th>Issued By</th>
+                <th>Issued At</th>
+                <th>Completed</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceCommandTable">
+
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>⬆️ Firmware Update</h3>
+
+    <label>Target Version</label>
+
+    <select id="targetFirmwareVersion" style="padding:8px; width:250px;">
+        <option value="">Select firmware</option>
+    </select>
+    
+    <button onclick="requestFirmwareUpdate()">
+        Request Update
+    </button>
+
+    <p id="firmwareUpdateMessage"></p>
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>Firmware Rollback and Recovery</h3>
+
+    <p>
+        <b>Current Firmware:</b>
+        <span id="rollbackCurrentVersion">--</span>
+    </p>
+
+    <label for="rollbackVersion">
+        <b>Known-Good Rollback Version</b>
+    </label>
+
+    <select id="rollbackVersion">
+        <option value="">Select rollback version</option>
+    </select>
+
+    <textarea id="rollbackReason" placeholder="Enter rollback reason"
+        style="width:100%; margin-top:10px; padding:10px;"></textarea>
+
+    <button onclick="requestFirmwareRollback()" style="margin-top:10px; background:#dc2626;">
+        Roll Back Firmware
+    </button>
+
+    <p id="rollbackMessage"></p>
+</div>
+
+
+
+
+
+
+<div class="card">
+    <h3>📜 Firmware Update History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Current</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Requested At</th>
+                <th>Completed At</th>
+            </tr>
+        </thead>
+
+        <tbody id="firmwareUpdateTable"></tbody>
+    </table>
+</div>
+
+
+
+
+<script>
+
+
+
+
+let telemetryChart = null;
+let allDeviceAlarmHistory = [];
+const deviceId = Number("{{ device_id }}");
+
+
+const socket = io();
+
+socket.on("connect", () => {
+    console.log("Device page socket connected:", socket.id);
+});
+
+socket.on("device_command_update", (data) => {
+    console.log("Device command update:", data);
+
+    if(data.device_id === deviceId){
+        loadDeviceCommands();
+    }
+});
+
+
+
+
+    function versionToNumber(version) {
+        return Number(
+            version.replace("v", "").replaceAll(".", "")
+        );
+    }
+
+    async function loadFirmwareOptions() {
+
+        const deviceType =
+            document.getElementById("deviceType").innerText;
+
+        const currentFirmware =
+            document.getElementById("firmware").innerText;
+
+        const res =
+            await fetch(`/firmware_repository/${encodeURIComponent(deviceType)}`);
+
+        const firmware = await res.json();
+
+        const select =
+            document.getElementById("targetFirmwareVersion");
+
+        select.innerHTML =
+            `<option value="">Select firmware</option>`;
+
+        firmware
+            .filter(f =>
+                versionToNumber(f.version) >
+                versionToNumber(currentFirmware)
+            )
+            .forEach(f => {
+                select.innerHTML += `
+            <option value="${f.version}">
+                ${f.version}
+            </option>`;
+            });
+    }
+
+
+socket.on("firmware_update", function(data){
+
+    if(data.device_id != deviceId)
+        return;
+
+    console.log("Firmware update:", data);
+
+    loadFirmwareUpdates();
+    loadDeviceDetails();
+    loadFirmwareOptions();
+});
+
+
+
+async function requestFirmwareUpdate(){
+    const targetVersion =
+        document.getElementById("targetFirmwareVersion").value;
+
+    if (!targetVersion) {
+        document.getElementById("firmwareUpdateMessage").innerText =
+            "Please select a firmware version";
+        return;
+    }
+
+    const res = await fetch(`/request_firmware_update/${deviceId}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            target_version: targetVersion
+        })
+    });
+
+    const result = await res.json();
+
+    document.getElementById("firmwareUpdateMessage").innerText =
+        result.message;
+
+    loadFirmwareUpdates();
+}
+
+async function loadFirmwareUpdates(){
+    const res = await fetch(`/iot_device_firmware_updates/${deviceId}`);
+    const updates = await res.json();
+
+    const body = document.getElementById("firmwareUpdateTable");
+    body.innerHTML = "";
+
+    updates.forEach(u => {
+        const statusClass =
+            u.update_status === "SUCCESS" ? "green" :
+            u.update_status === "FAILED" ? "red" :
+            u.update_status === "RUNNING" ? "orange" :
+            "";
+
+        body.innerHTML += `
+        <tr>
+            <td>${u.current_version}</td>
+            <td>${u.target_version}</td>
+            <td class="${statusClass}">${u.update_status}</td>
+            <td>${u.progress}%</td>
+            <td>${u.requested_at}</td>
+            <td>${u.completed_at}</td>
+        </tr>`;
+    });
+}
+
+
+
+
+
+
+
+async function retryDeviceCommand(commandId){
+
+    await fetch(`/retry_iot_device_command/${commandId}`,{
+        method:"POST"
+    });
+
+    loadDeviceCommands();
+
+}
+
+
+
+
+async function loadDeviceCommands(){
+
+    const response =
+        await fetch(`/iot_device_command_queue/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("deviceCommandTable");
+
+    body.innerHTML = "";
+
+    data.forEach(c=>{
+
+        let statusClass="";
+
+        if (c.command_status === "SUCCESS")
+            statusClass = "green";
+
+        else if (c.command_status === "FAILED")
+            statusClass = "red";
+
+        else if (c.command_status === "RUNNING")
+            statusClass = "orange";
+
+        else
+            statusClass = "";
+
+        body.innerHTML += `
+        <tr>
+
+            <td>${c.command_name}</td>
+
+            <td class="${statusClass}">
+                ${c.command_status}
+            </td>
+
+            <td>${c.issued_by}</td>
+
+            <td>${c.issued_at}</td>
+
+            <td>${c.completed_at}</td>
+
+                <td>
+
+                    ${c.command_status === "FAILED"
+                                    ?
+                                    `<button onclick="retryDeviceCommand(${c.id})">
+                            Retry
+                        </button>`
+                                    :
+                                    "-"
+                    }
+
+                </td>
+
+        </tr>
+        `;
+
+    });
+
+}
+
+
+
+
+async function sendDeviceCommand(command){
+
+    await fetch(`/issue_iot_device_command/${deviceId}`,{
+
+        method:"POST",
+
+        headers:{
+            "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+            command:command
+        })
+
+    });
+
+    loadDeviceCommands();
+
+}
+
+
+
+
+async function loadDeviceAlarmHistory(){
+    const res = await fetch(`/iot_device_alarm_history/${deviceId}`);
+    allDeviceAlarmHistory = await res.json();
+
+    renderDeviceAlarmHistory();
+}
+
+
+
+function renderDeviceAlarmHistory(){
+    const filter =
+        document.getElementById("deviceAlarmHistoryFilter").value;
+
+    const body =
+        document.getElementById("deviceAlarmHistoryTable");
+
+    body.innerHTML = "";
+
+    allDeviceAlarmHistory
+        .filter(a => !filter || a.status === filter)
+        .forEach(a => {
+            const severityClass =
+                a.severity === "CRITICAL" ? "red" :
+                a.severity === "WARNING" ? "orange" :
+                "green";
+
+            body.innerHTML += `
+            <tr>
+                <td>${a.alarm_name}</td>
+                <td class="${severityClass}">${a.severity}</td>
+                <td>${a.status}</td>
+                <td>${a.description}</td>
+                <td>${a.first_seen}</td>
+                <td>${a.last_seen}</td>
+            </tr>`;
+        });
+}
+
+
+
+async function ackDeviceAlarm(alarmId){
+    const res = await fetch(`/ack_iot_device_alarm/${alarmId}`, {
+        method: "POST"
+    });
+
+    const result = await res.json();
+
+    alert(result.message);
+
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+}
+
+
+
+
+async function loadDeviceAlarmSummary(){
+    const res = await fetch(`/iot_device_alarm_summary/${deviceId}`);
+    const data = await res.json();
+
+    document.getElementById("totalDeviceAlarms").innerText = data.total;
+    document.getElementById("criticalDeviceAlarms").innerText = data.critical;
+    document.getElementById("warningDeviceAlarms").innerText = data.warning;
+    document.getElementById("activeDeviceAlarms").innerText = data.active;
+}
+
+
+
+
+async function loadDeviceAlarms(){
+    const res = await fetch(`/iot_device_alarms/${deviceId}`);
+    const alarms = await res.json();
+
+    const body = document.getElementById("deviceAlarmTable");
+    body.innerHTML = "";
+
+    if(alarms.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="5">No active device alarms</td>
+        </tr>`;
+        return;
+    }
+
+    alarms.forEach(a => {
+        const severityClass =
+            a.severity === "CRITICAL" ? "red" :
+            a.severity === "WARNING" ? "orange" :
+            "green";
+
+        body.innerHTML += `
+        <tr>
+            <td>${a.alarm_name}</td>
+            <td class="${severityClass}">${a.severity}</td>
+            <td>${a.status}</td>
+            <td>${a.description}</td>
+            <td>${a.last_seen}</td>
+            <td>
+                <button onclick="ackDeviceAlarm(${a.id})">
+                    ACK
+                </button>
+            </td>
+
+        </tr>`;
+    });
+}
+
+
+
+async function loadTelemetrySummary(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const findValue = (key) => {
+        const item = data.find(t => t.telemetry_key === key);
+        return item ? `${item.telemetry_value} ${item.unit}` : "--";
+    };
+
+    document.getElementById("telemetryVoltage").innerText =
+        findValue("voltage");
+
+    document.getElementById("telemetryCurrent").innerText =
+        findValue("current");
+
+    document.getElementById("telemetryPower").innerText =
+        findValue("power");
+
+    document.getElementById("telemetryEnergy").innerText =
+        findValue("energy");
+}
+
+
+
+
+
+
+async function loadTelemetryChart(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const labels = data.map(t => t.telemetry_key);
+    const values = data.map(t => t.telemetry_value);
+
+    const ctx =
+        document.getElementById("telemetryChart")
+        .getContext("2d");
+
+    if(telemetryChart){
+        telemetryChart.destroy();
+    }
+
+    telemetryChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Telemetry Value",
+                data: values
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            plugins: {
+                legend: {
+                    labels: {
+                        color: "white"
+                    }
+                }
+            },
+
+            scales: {
+                x: {
+                    ticks: {
+                        color: "white"
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: "white"
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+
+
+
+
+async function loadDeviceDetails(){
+    const res = await fetch(`/iot_device_details/${deviceId}`);
+    const d = await res.json();
+
+    document.getElementById("deviceName").innerText = d.device_name;
+    document.getElementById("deviceEui").innerText = d.device_eui;
+    document.getElementById("deviceType").innerText = d.device_type;
+    document.getElementById("gatewayName").innerText = d.gateway_name;
+    document.getElementById("site").innerText = d.site;
+
+    const statusEl = document.getElementById("status");
+    statusEl.innerText = d.status;
+
+    statusEl.className =
+        d.status === "ONLINE" ? "value green" :
+        d.status === "OFFLINE" ? "value red" :
+        "value orange";
+
+    document.getElementById("battery").innerText = d.battery_level + "%";
+    document.getElementById("rssi").innerText = d.rssi;
+    document.getElementById("snr").innerText = d.snr;
+    document.getElementById("firmware").innerText = d.firmware_version;
+    document.getElementById("lastSeen").innerText = d.last_seen;
+    document.getElementById("isActive").innerText = d.is_active ? "YES" : "NO";
+}
+
+
+async function loadTelemetry(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("telemetryTable");
+
+    body.innerHTML = "";
+
+    if(data.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="4">No telemetry available</td>
+        </tr>`;
+        return;
+    }
+
+    data.forEach(t=>{
+
+        body.innerHTML += `
+        <tr>
+            <td>${t.telemetry_key}</td>
+            <td>${t.telemetry_value}</td>
+            <td>${t.unit}</td>
+            <td>${t.recorded_at}</td>
+        </tr>`;
+    });
+}
+
+
+
+loadDeviceDetails();
+loadTelemetry();
+loadTelemetryChart();
+loadTelemetrySummary();
+loadDeviceAlarms();
+loadDeviceAlarmSummary();
+loadDeviceAlarmHistory();
+loadDeviceCommands();
+loadFirmwareUpdates();
+loadFirmwareOptions(); 
+
+
+
+setInterval(() => {
+    loadDeviceDetails();
+    loadTelemetry();
+    loadTelemetryChart();
+    loadTelemetrySummary();
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+    loadDeviceAlarmHistory();
+    loadDeviceCommands();
+    loadFirmwareUpdates();
+    loadFirmwareOptions();
+},10000);
+</script>
+
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+<title>IoT Device Details</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<style>
+body{
+    font-family:Arial;
+    background:#111827;
+    color:white;
+    padding:20px;
+}
+
+.card{
+    background:#1f2937;
+    padding:20px;
+    border-radius:8px;
+    margin-top:15px;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:15px;
+}
+
+.value{
+    font-size:32px;
+    font-weight:bold;
+}
+
+.green{color:#00ff66;}
+.orange{color:#f59e0b;}
+.red{color:#ff4444;}
+
+.btn{
+    background:#2563eb;
+    color:white;
+    padding:8px 12px;
+    border-radius:5px;
+    text-decoration:none;
+}
+
+
+
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+
+th, td{
+    padding:12px;
+    border-bottom:1px solid #374151;
+    text-align:left;
+}
+
+th{
+    background:#111827;
+}
+
+
+</style>
+</head>
+
+<body>
+
+<h2>📟 IoT Device Details</h2>
+
+<a href="/gateway_details_page/1" class="btn">Back to Gateway</a>
+
+<div class="card">
+    <h3 id="deviceName">Loading...</h3>
+    <p><b>EUI:</b> <span id="deviceEui">--</span></p>
+    <p><b>Type:</b> <span id="deviceType">--</span></p>
+    <p><b>Gateway:</b> <span id="gatewayName">--</span></p>
+    <p><b>Site:</b> <span id="site">--</span></p>
+</div>
+
+<div class="grid">
+    <div class="card">
+        Status<br>
+        <span class="value" id="status">--</span>
+    </div>
+
+    <div class="card">
+        Battery<br>
+        <span class="value" id="battery">--</span>
+    </div>
+
+    <div class="card">
+        RSSI<br>
+        <span class="value" id="rssi">--</span>
+    </div>
+
+    <div class="card">
+        SNR<br>
+        <span class="value" id="snr">--</span>
+    </div>
+</div>
+
+<div class="card">
+    <p><b>Firmware:</b> <span id="firmware">--</span></p>
+    <p><b>Last Seen:</b> <span id="lastSeen">--</span></p>
+    <p><b>Active:</b> <span id="isActive">--</span></p>
+</div>
+
+
+
+
+<div class="card">
+
+    <h3>📈 Device Telemetry</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+                <th>Unit</th>
+                <th>Recorded At</th>
+            </tr>
+        </thead>
+
+        <tbody id="telemetryTable">
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+
+<div class="grid">
+    <div class="card">
+        Voltage<br>
+        <span class="value" id="telemetryVoltage">--</span>
+    </div>
+
+    <div class="card">
+        Current<br>
+        <span class="value" id="telemetryCurrent">--</span>
+    </div>
+
+    <div class="card">
+        Power<br>
+        <span class="value" id="telemetryPower">--</span>
+    </div>
+
+    <div class="card">
+        Energy<br>
+        <span class="value" id="telemetryEnergy">--</span>
+    </div>
+</div>
+
+
+
+
+
+
+<div class="card">
+    <h3>📊 Device Telemetry Chart</h3>
+    <div style="height:350px;">
+        <canvas id="telemetryChart"></canvas>
+    </div>
+</div>
+
+
+
+<div class="grid">
+    <div class="card">
+        Total Device Alarms<br>
+        <span class="value" id="totalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Critical<br>
+        <span class="value red" id="criticalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Warning<br>
+        <span class="value orange" id="warningDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Active<br>
+        <span class="value" id="activeDeviceAlarms">--</span>
+    </div>
+</div>
+
+
+
+
+<div class="card">
+    <h3>🚨 Device Active Alarms</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Alarm</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Description</th>
+                <th>Last Seen</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceAlarmTable"></tbody>
+    </table>
+</div>
+
+
+
+
+<div style="margin-bottom:15px;">
+    <select id="deviceAlarmHistoryFilter" onchange="renderDeviceAlarmHistory()" style="padding:8px;">
+        <option value="">All Alarms</option>
+        <option value="ACTIVE">ACTIVE</option>
+        <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
+    </select>
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>📜 Device Alarm History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Alarm</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Description</th>
+                <th>First Seen</th>
+                <th>Last Seen</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceAlarmHistoryTable"></tbody>
+    </table>
+</div>
+
+
+
+<div class="card">
+
+    <h3>🛰 Device Command Center</h3>
+
+    <button onclick="sendDeviceCommand('Ping Device')">
+        Ping Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Restart Device')">
+        Restart Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Request Telemetry')">
+        Request Telemetry
+    </button>
+
+</div>
+
+
+
+<div class="card">
+
+    <h3>📜 Device Command History</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Command</th>
+                <th>Status</th>
+                <th>Issued By</th>
+                <th>Issued At</th>
+                <th>Completed</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceCommandTable">
+
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>⬆️ Firmware Update</h3>
+
+    <label>Target Version</label>
+
+    <select id="targetFirmwareVersion" style="padding:8px; width:250px;">
+        <option value="">Select firmware</option>
+    </select>
+    
+    <button onclick="requestFirmwareUpdate()">
+        Request Update
+    </button>
+
+    <p id="firmwareUpdateMessage"></p>
+</div>
+
+
+
+<div class="card">
+    <h3>📜 Firmware Update History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Current</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Requested At</th>
+                <th>Completed At</th>
+            </tr>
+        </thead>
+
+        <tbody id="firmwareUpdateTable"></tbody>
+    </table>
+</div>
+
+
+
+
+<script>
+
+
+
+
+let telemetryChart = null;
+let allDeviceAlarmHistory = [];
+const deviceId = Number("{{ device_id }}");
+
+
+const socket = io();
+
+socket.on("connect", () => {
+    console.log("Device page socket connected:", socket.id);
+});
+
+socket.on("device_command_update", (data) => {
+    console.log("Device command update:", data);
+
+    if(data.device_id === deviceId){
+        loadDeviceCommands();
+    }
+});
+
+
+
+
+    function versionToNumber(version) {
+        return Number(
+            version.replace("v", "").replaceAll(".", "")
+        );
+    }
+
+    async function loadFirmwareOptions() {
+
+        const deviceType =
+            document.getElementById("deviceType").innerText;
+
+        const currentFirmware =
+            document.getElementById("firmware").innerText;
+
+        const res =
+            await fetch(`/firmware_repository/${encodeURIComponent(deviceType)}`);
+
+        const firmware = await res.json();
+
+        const select =
+            document.getElementById("targetFirmwareVersion");
+
+        select.innerHTML =
+            `<option value="">Select firmware</option>`;
+
+        firmware
+            .filter(f =>
+                versionToNumber(f.version) >
+                versionToNumber(currentFirmware)
+            )
+            .forEach(f => {
+                select.innerHTML += `
+            <option value="${f.version}">
+                ${f.version}
+            </option>`;
+            });
+    }
+
+
+socket.on("firmware_update", function(data){
+
+    if(data.device_id != deviceId)
+        return;
+
+    console.log("Firmware update:", data);
+
+    loadFirmwareUpdates();
+    loadDeviceDetails();
+    loadFirmwareOptions();
+});
+
+
+
+async function requestFirmwareUpdate(){
+    const targetVersion =
+        document.getElementById("targetFirmwareVersion").value;
+
+    if (!targetVersion) {
+        document.getElementById("firmwareUpdateMessage").innerText =
+            "Please select a firmware version";
+        return;
+    }
+
+    const res = await fetch(`/request_firmware_update/${deviceId}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            target_version: targetVersion
+        })
+    });
+
+    const result = await res.json();
+
+    document.getElementById("firmwareUpdateMessage").innerText =
+        result.message;
+
+    loadFirmwareUpdates();
+}
+
+async function loadFirmwareUpdates(){
+    const res = await fetch(`/iot_device_firmware_updates/${deviceId}`);
+    const updates = await res.json();
+
+    const body = document.getElementById("firmwareUpdateTable");
+    body.innerHTML = "";
+
+    updates.forEach(u => {
+        const statusClass =
+            u.update_status === "SUCCESS" ? "green" :
+            u.update_status === "FAILED" ? "red" :
+            u.update_status === "RUNNING" ? "orange" :
+            "";
+
+        body.innerHTML += `
+        <tr>
+            <td>${u.current_version}</td>
+            <td>${u.target_version}</td>
+            <td class="${statusClass}">${u.update_status}</td>
+            <td>${u.progress}%</td>
+            <td>${u.requested_at}</td>
+            <td>${u.completed_at}</td>
+        </tr>`;
+    });
+}
+
+
+
+
+
+
+
+async function retryDeviceCommand(commandId){
+
+    await fetch(`/retry_iot_device_command/${commandId}`,{
+        method:"POST"
+    });
+
+    loadDeviceCommands();
+
+}
+
+
+
+
+async function loadDeviceCommands(){
+
+    const response =
+        await fetch(`/iot_device_command_queue/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("deviceCommandTable");
+
+    body.innerHTML = "";
+
+    data.forEach(c=>{
+
+        let statusClass="";
+
+        if (c.command_status === "SUCCESS")
+            statusClass = "green";
+
+        else if (c.command_status === "FAILED")
+            statusClass = "red";
+
+        else if (c.command_status === "RUNNING")
+            statusClass = "orange";
+
+        else
+            statusClass = "";
+
+        body.innerHTML += `
+        <tr>
+
+            <td>${c.command_name}</td>
+
+            <td class="${statusClass}">
+                ${c.command_status}
+            </td>
+
+            <td>${c.issued_by}</td>
+
+            <td>${c.issued_at}</td>
+
+            <td>${c.completed_at}</td>
+
+                <td>
+
+                    ${c.command_status === "FAILED"
+                                    ?
+                                    `<button onclick="retryDeviceCommand(${c.id})">
+                            Retry
+                        </button>`
+                                    :
+                                    "-"
+                    }
+
+                </td>
+
+        </tr>
+        `;
+
+    });
+
+}
+
+
+
+
+async function sendDeviceCommand(command){
+
+    await fetch(`/issue_iot_device_command/${deviceId}`,{
+
+        method:"POST",
+
+        headers:{
+            "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+            command:command
+        })
+
+    });
+
+    loadDeviceCommands();
+
+}
+
+
+
+
+async function loadDeviceAlarmHistory(){
+    const res = await fetch(`/iot_device_alarm_history/${deviceId}`);
+    allDeviceAlarmHistory = await res.json();
+
+    renderDeviceAlarmHistory();
+}
+
+
+
+function renderDeviceAlarmHistory(){
+    const filter =
+        document.getElementById("deviceAlarmHistoryFilter").value;
+
+    const body =
+        document.getElementById("deviceAlarmHistoryTable");
+
+    body.innerHTML = "";
+
+    allDeviceAlarmHistory
+        .filter(a => !filter || a.status === filter)
+        .forEach(a => {
+            const severityClass =
+                a.severity === "CRITICAL" ? "red" :
+                a.severity === "WARNING" ? "orange" :
+                "green";
+
+            body.innerHTML += `
+            <tr>
+                <td>${a.alarm_name}</td>
+                <td class="${severityClass}">${a.severity}</td>
+                <td>${a.status}</td>
+                <td>${a.description}</td>
+                <td>${a.first_seen}</td>
+                <td>${a.last_seen}</td>
+            </tr>`;
+        });
+}
+
+
+
+async function ackDeviceAlarm(alarmId){
+    const res = await fetch(`/ack_iot_device_alarm/${alarmId}`, {
+        method: "POST"
+    });
+
+    const result = await res.json();
+
+    alert(result.message);
+
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+}
+
+
+
+
+async function loadDeviceAlarmSummary(){
+    const res = await fetch(`/iot_device_alarm_summary/${deviceId}`);
+    const data = await res.json();
+
+    document.getElementById("totalDeviceAlarms").innerText = data.total;
+    document.getElementById("criticalDeviceAlarms").innerText = data.critical;
+    document.getElementById("warningDeviceAlarms").innerText = data.warning;
+    document.getElementById("activeDeviceAlarms").innerText = data.active;
+}
+
+
+
+
+async function loadDeviceAlarms(){
+    const res = await fetch(`/iot_device_alarms/${deviceId}`);
+    const alarms = await res.json();
+
+    const body = document.getElementById("deviceAlarmTable");
+    body.innerHTML = "";
+
+    if(alarms.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="5">No active device alarms</td>
+        </tr>`;
+        return;
+    }
+
+    alarms.forEach(a => {
+        const severityClass =
+            a.severity === "CRITICAL" ? "red" :
+            a.severity === "WARNING" ? "orange" :
+            "green";
+
+        body.innerHTML += `
+        <tr>
+            <td>${a.alarm_name}</td>
+            <td class="${severityClass}">${a.severity}</td>
+            <td>${a.status}</td>
+            <td>${a.description}</td>
+            <td>${a.last_seen}</td>
+            <td>
+                <button onclick="ackDeviceAlarm(${a.id})">
+                    ACK
+                </button>
+            </td>
+
+        </tr>`;
+    });
+}
+
+
+
+async function loadTelemetrySummary(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const findValue = (key) => {
+        const item = data.find(t => t.telemetry_key === key);
+        return item ? `${item.telemetry_value} ${item.unit}` : "--";
+    };
+
+    document.getElementById("telemetryVoltage").innerText =
+        findValue("voltage");
+
+    document.getElementById("telemetryCurrent").innerText =
+        findValue("current");
+
+    document.getElementById("telemetryPower").innerText =
+        findValue("power");
+
+    document.getElementById("telemetryEnergy").innerText =
+        findValue("energy");
+}
+
+
+
+
+
+
+async function loadTelemetryChart(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const labels = data.map(t => t.telemetry_key);
+    const values = data.map(t => t.telemetry_value);
+
+    const ctx =
+        document.getElementById("telemetryChart")
+        .getContext("2d");
+
+    if(telemetryChart){
+        telemetryChart.destroy();
+    }
+
+    telemetryChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Telemetry Value",
+                data: values
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            plugins: {
+                legend: {
+                    labels: {
+                        color: "white"
+                    }
+                }
+            },
+
+            scales: {
+                x: {
+                    ticks: {
+                        color: "white"
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: "white"
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+
+
+
+
+async function loadDeviceDetails(){
+    const res = await fetch(`/iot_device_details/${deviceId}`);
+    const d = await res.json();
+
+    document.getElementById("deviceName").innerText = d.device_name;
+    document.getElementById("deviceEui").innerText = d.device_eui;
+    document.getElementById("deviceType").innerText = d.device_type;
+    document.getElementById("gatewayName").innerText = d.gateway_name;
+    document.getElementById("site").innerText = d.site;
+
+    const statusEl = document.getElementById("status");
+    statusEl.innerText = d.status;
+
+    statusEl.className =
+        d.status === "ONLINE" ? "value green" :
+        d.status === "OFFLINE" ? "value red" :
+        "value orange";
+
+    document.getElementById("battery").innerText = d.battery_level + "%";
+    document.getElementById("rssi").innerText = d.rssi;
+    document.getElementById("snr").innerText = d.snr;
+    document.getElementById("firmware").innerText = d.firmware_version;
+    document.getElementById("lastSeen").innerText = d.last_seen;
+    document.getElementById("isActive").innerText = d.is_active ? "YES" : "NO";
+}
+
+
+async function loadTelemetry(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("telemetryTable");
+
+    body.innerHTML = "";
+
+    if(data.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="4">No telemetry available</td>
+        </tr>`;
+        return;
+    }
+
+    data.forEach(t=>{
+
+        body.innerHTML += `
+        <tr>
+            <td>${t.telemetry_key}</td>
+            <td>${t.telemetry_value}</td>
+            <td>${t.unit}</td>
+            <td>${t.recorded_at}</td>
+        </tr>`;
+    });
+}
+
+
+
+loadDeviceDetails();
+loadTelemetry();
+loadTelemetryChart();
+loadTelemetrySummary();
+loadDeviceAlarms();
+loadDeviceAlarmSummary();
+loadDeviceAlarmHistory();
+loadDeviceCommands();
+loadFirmwareUpdates();
+loadFirmwareOptions(); 
+
+
+
+setInterval(() => {
+    loadDeviceDetails();
+    loadTelemetry();
+    loadTelemetryChart();
+    loadTelemetrySummary();
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+    loadDeviceAlarmHistory();
+    loadDeviceCommands();
+    loadFirmwareUpdates();
+    loadFirmwareOptions();
+},10000);
+</script>
+
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+<title>IoT Device Details</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<style>
+body{
+    font-family:Arial;
+    background:#111827;
+    color:white;
+    padding:20px;
+}
+
+.card{
+    background:#1f2937;
+    padding:20px;
+    border-radius:8px;
+    margin-top:15px;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:15px;
+}
+
+.value{
+    font-size:32px;
+    font-weight:bold;
+}
+
+.green{color:#00ff66;}
+.orange{color:#f59e0b;}
+.red{color:#ff4444;}
+
+.btn{
+    background:#2563eb;
+    color:white;
+    padding:8px 12px;
+    border-radius:5px;
+    text-decoration:none;
+}
+
+
+
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+
+th, td{
+    padding:12px;
+    border-bottom:1px solid #374151;
+    text-align:left;
+}
+
+th{
+    background:#111827;
+}
+
+
+</style>
+</head>
+
+<body>
+
+<h2>📟 IoT Device Details</h2>
+
+<a href="/gateway_details_page/1" class="btn">Back to Gateway</a>
+
+<div class="card">
+    <h3 id="deviceName">Loading...</h3>
+    <p><b>EUI:</b> <span id="deviceEui">--</span></p>
+    <p><b>Type:</b> <span id="deviceType">--</span></p>
+    <p><b>Gateway:</b> <span id="gatewayName">--</span></p>
+    <p><b>Site:</b> <span id="site">--</span></p>
+</div>
+
+<div class="grid">
+    <div class="card">
+        Status<br>
+        <span class="value" id="status">--</span>
+    </div>
+
+    <div class="card">
+        Battery<br>
+        <span class="value" id="battery">--</span>
+    </div>
+
+    <div class="card">
+        RSSI<br>
+        <span class="value" id="rssi">--</span>
+    </div>
+
+    <div class="card">
+        SNR<br>
+        <span class="value" id="snr">--</span>
+    </div>
+</div>
+
+<div class="card">
+    <p><b>Firmware:</b> <span id="firmware">--</span></p>
+    <p><b>Last Seen:</b> <span id="lastSeen">--</span></p>
+    <p><b>Active:</b> <span id="isActive">--</span></p>
+</div>
+
+
+
+
+<div class="card">
+
+    <h3>📈 Device Telemetry</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+                <th>Unit</th>
+                <th>Recorded At</th>
+            </tr>
+        </thead>
+
+        <tbody id="telemetryTable">
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+
+<div class="grid">
+    <div class="card">
+        Voltage<br>
+        <span class="value" id="telemetryVoltage">--</span>
+    </div>
+
+    <div class="card">
+        Current<br>
+        <span class="value" id="telemetryCurrent">--</span>
+    </div>
+
+    <div class="card">
+        Power<br>
+        <span class="value" id="telemetryPower">--</span>
+    </div>
+
+    <div class="card">
+        Energy<br>
+        <span class="value" id="telemetryEnergy">--</span>
+    </div>
+</div>
+
+
+
+
+
+
+<div class="card">
+    <h3>📊 Device Telemetry Chart</h3>
+    <div style="height:350px;">
+        <canvas id="telemetryChart"></canvas>
+    </div>
+</div>
+
+
+
+<div class="grid">
+    <div class="card">
+        Total Device Alarms<br>
+        <span class="value" id="totalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Critical<br>
+        <span class="value red" id="criticalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Warning<br>
+        <span class="value orange" id="warningDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Active<br>
+        <span class="value" id="activeDeviceAlarms">--</span>
+    </div>
+</div>
+
+
+
+
+<div class="card">
+    <h3>🚨 Device Active Alarms</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Alarm</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Description</th>
+                <th>Last Seen</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceAlarmTable"></tbody>
+    </table>
+</div>
+
+
+
+
+<div style="margin-bottom:15px;">
+    <select id="deviceAlarmHistoryFilter" onchange="renderDeviceAlarmHistory()" style="padding:8px;">
+        <option value="">All Alarms</option>
+        <option value="ACTIVE">ACTIVE</option>
+        <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
+    </select>
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>📜 Device Alarm History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Alarm</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Description</th>
+                <th>First Seen</th>
+                <th>Last Seen</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceAlarmHistoryTable"></tbody>
+    </table>
+</div>
+
+
+
+<div class="card">
+
+    <h3>🛰 Device Command Center</h3>
+
+    <button onclick="sendDeviceCommand('Ping Device')">
+        Ping Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Restart Device')">
+        Restart Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Request Telemetry')">
+        Request Telemetry
+    </button>
+
+</div>
+
+
+
+<div class="card">
+
+    <h3>📜 Device Command History</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Command</th>
+                <th>Status</th>
+                <th>Issued By</th>
+                <th>Issued At</th>
+                <th>Completed</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceCommandTable">
+
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>⬆️ Firmware Update</h3>
+
+    <label>Target Version</label>
+
+    <select id="targetFirmwareVersion" style="padding:8px; width:250px;">
+        <option value="">Select firmware</option>
+    </select>
+    
+    <button onclick="requestFirmwareUpdate()">
+        Request Update
+    </button>
+
+    <p id="firmwareUpdateMessage"></p>
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>Firmware Rollback and Recovery</h3>
+
+    <p>
+        <b>Current Firmware:</b>
+        <span id="rollbackCurrentVersion">--</span>
+    </p>
+
+    <label for="rollbackVersion">
+        <b>Known-Good Rollback Version</b>
+    </label>
+
+    <select id="rollbackVersion">
+        <option value="">Select rollback version</option>
+    </select>
+
+    <textarea id="rollbackReason" placeholder="Enter rollback reason"
+        style="width:100%; margin-top:10px; padding:10px;"></textarea>
+
+    <button onclick="requestFirmwareRollback()" style="margin-top:10px; background:#dc2626;">
+        Roll Back Firmware
+    </button>
+
+    <p id="rollbackMessage"></p>
+</div>
+
+
+
+
+
+
+<div class="card">
+    <h3>📜 Firmware Update History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Current</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Requested At</th>
+                <th>Completed At</th>
+            </tr>
+        </thead>
+
+        <tbody id="firmwareUpdateTable"></tbody>
+    </table>
+</div>
+
+
+
+
+<script>
+
+
+
+
+let telemetryChart = null;
+let allDeviceAlarmHistory = [];
+const deviceId = Number("{{ device_id }}");
+
+
+const socket = io();
+
+socket.on("connect", () => {
+    console.log("Device page socket connected:", socket.id);
+});
+
+socket.on("device_command_update", (data) => {
+    console.log("Device command update:", data);
+
+    if(data.device_id === deviceId){
+        loadDeviceCommands();
+    }
+});
+
+
+
+
+    function versionToNumber(version) {
+        return Number(
+            version.replace("v", "").replaceAll(".", "")
+        );
+    }
+
+    async function loadFirmwareOptions() {
+
+        const deviceType =
+            document.getElementById("deviceType").innerText;
+
+        const currentFirmware =
+            document.getElementById("firmware").innerText;
+
+        const res =
+            await fetch(`/firmware_repository/${encodeURIComponent(deviceType)}`);
+
+        const firmware = await res.json();
+
+        const select =
+            document.getElementById("targetFirmwareVersion");
+
+        select.innerHTML =
+            `<option value="">Select firmware</option>`;
+
+        firmware
+            .filter(f =>
+                versionToNumber(f.version) >
+                versionToNumber(currentFirmware)
+            )
+            .forEach(f => {
+                select.innerHTML += `
+            <option value="${f.version}">
+                ${f.version}
+            </option>`;
+            });
+    }
+
+
+socket.on("firmware_update", function(data){
+
+    if(data.device_id != deviceId)
+        return;
+
+    console.log("Firmware update:", data);
+
+    loadFirmwareUpdates();
+    loadDeviceDetails();
+    loadFirmwareOptions();
+});
+
+
+
+async function requestFirmwareUpdate(){
+    const targetVersion =
+        document.getElementById("targetFirmwareVersion").value;
+
+    if (!targetVersion) {
+        document.getElementById("firmwareUpdateMessage").innerText =
+            "Please select a firmware version";
+        return;
+    }
+
+    const res = await fetch(`/request_firmware_update/${deviceId}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            target_version: targetVersion
+        })
+    });
+
+    const result = await res.json();
+
+    document.getElementById("firmwareUpdateMessage").innerText =
+        result.message;
+
+    loadFirmwareUpdates();
+}
+
+async function loadFirmwareUpdates(){
+    const res = await fetch(`/iot_device_firmware_updates/${deviceId}`);
+    const updates = await res.json();
+
+    const body = document.getElementById("firmwareUpdateTable");
+    body.innerHTML = "";
+
+    updates.forEach(u => {
+        const statusClass =
+            u.update_status === "SUCCESS" ? "green" :
+            u.update_status === "FAILED" ? "red" :
+            u.update_status === "RUNNING" ? "orange" :
+            "";
+
+        body.innerHTML += `
+        <tr>
+            <td>${u.current_version}</td>
+            <td>${u.target_version}</td>
+            <td class="${statusClass}">${u.update_status}</td>
+            <td>${u.progress}%</td>
+            <td>${u.requested_at}</td>
+            <td>${u.completed_at}</td>
+        </tr>`;
+    });
+}
+
+
+
+
+
+
+
+async function retryDeviceCommand(commandId){
+
+    await fetch(`/retry_iot_device_command/${commandId}`,{
+        method:"POST"
+    });
+
+    loadDeviceCommands();
+
+}
+
+
+
+
+async function loadDeviceCommands(){
+
+    const response =
+        await fetch(`/iot_device_command_queue/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("deviceCommandTable");
+
+    body.innerHTML = "";
+
+    data.forEach(c=>{
+
+        let statusClass="";
+
+        if (c.command_status === "SUCCESS")
+            statusClass = "green";
+
+        else if (c.command_status === "FAILED")
+            statusClass = "red";
+
+        else if (c.command_status === "RUNNING")
+            statusClass = "orange";
+
+        else
+            statusClass = "";
+
+        body.innerHTML += `
+        <tr>
+
+            <td>${c.command_name}</td>
+
+            <td class="${statusClass}">
+                ${c.command_status}
+            </td>
+
+            <td>${c.issued_by}</td>
+
+            <td>${c.issued_at}</td>
+
+            <td>${c.completed_at}</td>
+
+                <td>
+
+                    ${c.command_status === "FAILED"
+                                    ?
+                                    `<button onclick="retryDeviceCommand(${c.id})">
+                            Retry
+                        </button>`
+                                    :
+                                    "-"
+                    }
+
+                </td>
+
+        </tr>
+        `;
+
+    });
+
+}
+
+
+
+
+async function sendDeviceCommand(command){
+
+    await fetch(`/issue_iot_device_command/${deviceId}`,{
+
+        method:"POST",
+
+        headers:{
+            "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+            command:command
+        })
+
+    });
+
+    loadDeviceCommands();
+
+}
+
+
+
+
+async function loadDeviceAlarmHistory(){
+    const res = await fetch(`/iot_device_alarm_history/${deviceId}`);
+    allDeviceAlarmHistory = await res.json();
+
+    renderDeviceAlarmHistory();
+}
+
+
+
+function renderDeviceAlarmHistory(){
+    const filter =
+        document.getElementById("deviceAlarmHistoryFilter").value;
+
+    const body =
+        document.getElementById("deviceAlarmHistoryTable");
+
+    body.innerHTML = "";
+
+    allDeviceAlarmHistory
+        .filter(a => !filter || a.status === filter)
+        .forEach(a => {
+            const severityClass =
+                a.severity === "CRITICAL" ? "red" :
+                a.severity === "WARNING" ? "orange" :
+                "green";
+
+            body.innerHTML += `
+            <tr>
+                <td>${a.alarm_name}</td>
+                <td class="${severityClass}">${a.severity}</td>
+                <td>${a.status}</td>
+                <td>${a.description}</td>
+                <td>${a.first_seen}</td>
+                <td>${a.last_seen}</td>
+            </tr>`;
+        });
+}
+
+
+
+async function ackDeviceAlarm(alarmId){
+    const res = await fetch(`/ack_iot_device_alarm/${alarmId}`, {
+        method: "POST"
+    });
+
+    const result = await res.json();
+
+    alert(result.message);
+
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+}
+
+
+
+
+async function loadDeviceAlarmSummary(){
+    const res = await fetch(`/iot_device_alarm_summary/${deviceId}`);
+    const data = await res.json();
+
+    document.getElementById("totalDeviceAlarms").innerText = data.total;
+    document.getElementById("criticalDeviceAlarms").innerText = data.critical;
+    document.getElementById("warningDeviceAlarms").innerText = data.warning;
+    document.getElementById("activeDeviceAlarms").innerText = data.active;
+}
+
+
+
+
+async function loadDeviceAlarms(){
+    const res = await fetch(`/iot_device_alarms/${deviceId}`);
+    const alarms = await res.json();
+
+    const body = document.getElementById("deviceAlarmTable");
+    body.innerHTML = "";
+
+    if(alarms.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="5">No active device alarms</td>
+        </tr>`;
+        return;
+    }
+
+    alarms.forEach(a => {
+        const severityClass =
+            a.severity === "CRITICAL" ? "red" :
+            a.severity === "WARNING" ? "orange" :
+            "green";
+
+        body.innerHTML += `
+        <tr>
+            <td>${a.alarm_name}</td>
+            <td class="${severityClass}">${a.severity}</td>
+            <td>${a.status}</td>
+            <td>${a.description}</td>
+            <td>${a.last_seen}</td>
+            <td>
+                <button onclick="ackDeviceAlarm(${a.id})">
+                    ACK
+                </button>
+            </td>
+
+        </tr>`;
+    });
+}
+
+
+
+async function loadTelemetrySummary(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const findValue = (key) => {
+        const item = data.find(t => t.telemetry_key === key);
+        return item ? `${item.telemetry_value} ${item.unit}` : "--";
+    };
+
+    document.getElementById("telemetryVoltage").innerText =
+        findValue("voltage");
+
+    document.getElementById("telemetryCurrent").innerText =
+        findValue("current");
+
+    document.getElementById("telemetryPower").innerText =
+        findValue("power");
+
+    document.getElementById("telemetryEnergy").innerText =
+        findValue("energy");
+}
+
+
+
+
+
+
+async function loadTelemetryChart(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const labels = data.map(t => t.telemetry_key);
+    const values = data.map(t => t.telemetry_value);
+
+    const ctx =
+        document.getElementById("telemetryChart")
+        .getContext("2d");
+
+    if(telemetryChart){
+        telemetryChart.destroy();
+    }
+
+    telemetryChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Telemetry Value",
+                data: values
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            plugins: {
+                legend: {
+                    labels: {
+                        color: "white"
+                    }
+                }
+            },
+
+            scales: {
+                x: {
+                    ticks: {
+                        color: "white"
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: "white"
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+
+
+
+
+async function loadDeviceDetails(){
+    const res = await fetch(`/iot_device_details/${deviceId}`);
+    const d = await res.json();
+
+    document.getElementById("deviceName").innerText = d.device_name;
+    document.getElementById("deviceEui").innerText = d.device_eui;
+    document.getElementById("deviceType").innerText = d.device_type;
+    document.getElementById("gatewayName").innerText = d.gateway_name;
+    document.getElementById("site").innerText = d.site;
+
+    const statusEl = document.getElementById("status");
+    statusEl.innerText = d.status;
+
+    statusEl.className =
+        d.status === "ONLINE" ? "value green" :
+        d.status === "OFFLINE" ? "value red" :
+        "value orange";
+
+    document.getElementById("battery").innerText = d.battery_level + "%";
+    document.getElementById("rssi").innerText = d.rssi;
+    document.getElementById("snr").innerText = d.snr;
+    document.getElementById("firmware").innerText = d.firmware_version;
+    document.getElementById("lastSeen").innerText = d.last_seen;
+    document.getElementById("isActive").innerText = d.is_active ? "YES" : "NO";
+}
+
+
+async function loadTelemetry(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("telemetryTable");
+
+    body.innerHTML = "";
+
+    if(data.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="4">No telemetry available</td>
+        </tr>`;
+        return;
+    }
+
+    data.forEach(t=>{
+
+        body.innerHTML += `
+        <tr>
+            <td>${t.telemetry_key}</td>
+            <td>${t.telemetry_value}</td>
+            <td>${t.unit}</td>
+            <td>${t.recorded_at}</td>
+        </tr>`;
+    });
+}
+
+
+
+loadDeviceDetails();
+loadTelemetry();
+loadTelemetryChart();
+loadTelemetrySummary();
+loadDeviceAlarms();
+loadDeviceAlarmSummary();
+loadDeviceAlarmHistory();
+loadDeviceCommands();
+loadFirmwareUpdates();
+loadFirmwareOptions(); 
+
+
+
+setInterval(() => {
+    loadDeviceDetails();
+    loadTelemetry();
+    loadTelemetryChart();
+    loadTelemetrySummary();
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+    loadDeviceAlarmHistory();
+    loadDeviceCommands();
+    loadFirmwareUpdates();
+    loadFirmwareOptions();
+},10000);
+</script>
+
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+<title>IoT Device Details</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<style>
+body{
+    font-family:Arial;
+    background:#111827;
+    color:white;
+    padding:20px;
+}
+
+.card{
+    background:#1f2937;
+    padding:20px;
+    border-radius:8px;
+    margin-top:15px;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:15px;
+}
+
+.value{
+    font-size:32px;
+    font-weight:bold;
+}
+
+.green{color:#00ff66;}
+.orange{color:#f59e0b;}
+.red{color:#ff4444;}
+
+.btn{
+    background:#2563eb;
+    color:white;
+    padding:8px 12px;
+    border-radius:5px;
+    text-decoration:none;
+}
+
+
+
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+
+th, td{
+    padding:12px;
+    border-bottom:1px solid #374151;
+    text-align:left;
+}
+
+th{
+    background:#111827;
+}
+
+
+</style>
+</head>
+
+<body>
+
+<h2>📟 IoT Device Details</h2>
+
+<a href="/gateway_details_page/1" class="btn">Back to Gateway</a>
+
+<div class="card">
+    <h3 id="deviceName">Loading...</h3>
+    <p><b>EUI:</b> <span id="deviceEui">--</span></p>
+    <p><b>Type:</b> <span id="deviceType">--</span></p>
+    <p><b>Gateway:</b> <span id="gatewayName">--</span></p>
+    <p><b>Site:</b> <span id="site">--</span></p>
+</div>
+
+<div class="grid">
+    <div class="card">
+        Status<br>
+        <span class="value" id="status">--</span>
+    </div>
+
+    <div class="card">
+        Battery<br>
+        <span class="value" id="battery">--</span>
+    </div>
+
+    <div class="card">
+        RSSI<br>
+        <span class="value" id="rssi">--</span>
+    </div>
+
+    <div class="card">
+        SNR<br>
+        <span class="value" id="snr">--</span>
+    </div>
+</div>
+
+<div class="card">
+    <p><b>Firmware:</b> <span id="firmware">--</span></p>
+    <p><b>Last Seen:</b> <span id="lastSeen">--</span></p>
+    <p><b>Active:</b> <span id="isActive">--</span></p>
+</div>
+
+
+
+
+<div class="card">
+
+    <h3>📈 Device Telemetry</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+                <th>Unit</th>
+                <th>Recorded At</th>
+            </tr>
+        </thead>
+
+        <tbody id="telemetryTable">
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+
+<div class="grid">
+    <div class="card">
+        Voltage<br>
+        <span class="value" id="telemetryVoltage">--</span>
+    </div>
+
+    <div class="card">
+        Current<br>
+        <span class="value" id="telemetryCurrent">--</span>
+    </div>
+
+    <div class="card">
+        Power<br>
+        <span class="value" id="telemetryPower">--</span>
+    </div>
+
+    <div class="card">
+        Energy<br>
+        <span class="value" id="telemetryEnergy">--</span>
+    </div>
+</div>
+
+
+
+
+
+
+<div class="card">
+    <h3>📊 Device Telemetry Chart</h3>
+    <div style="height:350px;">
+        <canvas id="telemetryChart"></canvas>
+    </div>
+</div>
+
+
+
+<div class="grid">
+    <div class="card">
+        Total Device Alarms<br>
+        <span class="value" id="totalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Critical<br>
+        <span class="value red" id="criticalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Warning<br>
+        <span class="value orange" id="warningDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Active<br>
+        <span class="value" id="activeDeviceAlarms">--</span>
+    </div>
+</div>
+
+
+
+
+<div class="card">
+    <h3>🚨 Device Active Alarms</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Alarm</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Description</th>
+                <th>Last Seen</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceAlarmTable"></tbody>
+    </table>
+</div>
+
+
+
+
+<div style="margin-bottom:15px;">
+    <select id="deviceAlarmHistoryFilter" onchange="renderDeviceAlarmHistory()" style="padding:8px;">
+        <option value="">All Alarms</option>
+        <option value="ACTIVE">ACTIVE</option>
+        <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
+    </select>
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>📜 Device Alarm History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Alarm</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Description</th>
+                <th>First Seen</th>
+                <th>Last Seen</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceAlarmHistoryTable"></tbody>
+    </table>
+</div>
+
+
+
+<div class="card">
+
+    <h3>🛰 Device Command Center</h3>
+
+    <button onclick="sendDeviceCommand('Ping Device')">
+        Ping Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Restart Device')">
+        Restart Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Request Telemetry')">
+        Request Telemetry
+    </button>
+
+</div>
+
+
+
+<div class="card">
+
+    <h3>📜 Device Command History</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Command</th>
+                <th>Status</th>
+                <th>Issued By</th>
+                <th>Issued At</th>
+                <th>Completed</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceCommandTable">
+
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>⬆️ Firmware Update</h3>
+
+    <label>Target Version</label>
+
+    <select id="targetFirmwareVersion" style="padding:8px; width:250px;">
+        <option value="">Select firmware</option>
+    </select>
+    
+    <button onclick="requestFirmwareUpdate()">
+        Request Update
+    </button>
+
+    <p id="firmwareUpdateMessage"></p>
+</div>
+
+
+
+<div class="card">
+    <h3>📜 Firmware Update History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Current</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Requested At</th>
+                <th>Completed At</th>
+            </tr>
+        </thead>
+
+        <tbody id="firmwareUpdateTable"></tbody>
+    </table>
+</div>
+
+
+
+
+<script>
+
+
+
+
+let telemetryChart = null;
+let allDeviceAlarmHistory = [];
+const deviceId = Number("{{ device_id }}");
+
+
+const socket = io();
+
+socket.on("connect", () => {
+    console.log("Device page socket connected:", socket.id);
+});
+
+socket.on("device_command_update", (data) => {
+    console.log("Device command update:", data);
+
+    if(data.device_id === deviceId){
+        loadDeviceCommands();
+    }
+});
+
+
+
+
+    function versionToNumber(version) {
+        return Number(
+            version.replace("v", "").replaceAll(".", "")
+        );
+    }
+
+    async function loadFirmwareOptions() {
+
+        const deviceType =
+            document.getElementById("deviceType").innerText;
+
+        const currentFirmware =
+            document.getElementById("firmware").innerText;
+
+        const res =
+            await fetch(`/firmware_repository/${encodeURIComponent(deviceType)}`);
+
+        const firmware = await res.json();
+
+        const select =
+            document.getElementById("targetFirmwareVersion");
+
+        select.innerHTML =
+            `<option value="">Select firmware</option>`;
+
+        firmware
+            .filter(f =>
+                versionToNumber(f.version) >
+                versionToNumber(currentFirmware)
+            )
+            .forEach(f => {
+                select.innerHTML += `
+            <option value="${f.version}">
+                ${f.version}
+            </option>`;
+            });
+    }
+
+
+socket.on("firmware_update", function(data){
+
+    if(data.device_id != deviceId)
+        return;
+
+    console.log("Firmware update:", data);
+
+    loadFirmwareUpdates();
+    loadDeviceDetails();
+    loadFirmwareOptions();
+});
+
+
+
+async function requestFirmwareUpdate(){
+    const targetVersion =
+        document.getElementById("targetFirmwareVersion").value;
+
+    if (!targetVersion) {
+        document.getElementById("firmwareUpdateMessage").innerText =
+            "Please select a firmware version";
+        return;
+    }
+
+    const res = await fetch(`/request_firmware_update/${deviceId}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            target_version: targetVersion
+        })
+    });
+
+    const result = await res.json();
+
+    document.getElementById("firmwareUpdateMessage").innerText =
+        result.message;
+
+    loadFirmwareUpdates();
+}
+
+async function loadFirmwareUpdates(){
+    const res = await fetch(`/iot_device_firmware_updates/${deviceId}`);
+    const updates = await res.json();
+
+    const body = document.getElementById("firmwareUpdateTable");
+    body.innerHTML = "";
+
+    updates.forEach(u => {
+        const statusClass =
+            u.update_status === "SUCCESS" ? "green" :
+            u.update_status === "FAILED" ? "red" :
+            u.update_status === "RUNNING" ? "orange" :
+            "";
+
+        body.innerHTML += `
+        <tr>
+            <td>${u.current_version}</td>
+            <td>${u.target_version}</td>
+            <td class="${statusClass}">${u.update_status}</td>
+            <td>${u.progress}%</td>
+            <td>${u.requested_at}</td>
+            <td>${u.completed_at}</td>
+        </tr>`;
+    });
+}
+
+
+
+
+
+
+
+async function retryDeviceCommand(commandId){
+
+    await fetch(`/retry_iot_device_command/${commandId}`,{
+        method:"POST"
+    });
+
+    loadDeviceCommands();
+
+}
+
+
+
+
+async function loadDeviceCommands(){
+
+    const response =
+        await fetch(`/iot_device_command_queue/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("deviceCommandTable");
+
+    body.innerHTML = "";
+
+    data.forEach(c=>{
+
+        let statusClass="";
+
+        if (c.command_status === "SUCCESS")
+            statusClass = "green";
+
+        else if (c.command_status === "FAILED")
+            statusClass = "red";
+
+        else if (c.command_status === "RUNNING")
+            statusClass = "orange";
+
+        else
+            statusClass = "";
+
+        body.innerHTML += `
+        <tr>
+
+            <td>${c.command_name}</td>
+
+            <td class="${statusClass}">
+                ${c.command_status}
+            </td>
+
+            <td>${c.issued_by}</td>
+
+            <td>${c.issued_at}</td>
+
+            <td>${c.completed_at}</td>
+
+                <td>
+
+                    ${c.command_status === "FAILED"
+                                    ?
+                                    `<button onclick="retryDeviceCommand(${c.id})">
+                            Retry
+                        </button>`
+                                    :
+                                    "-"
+                    }
+
+                </td>
+
+        </tr>
+        `;
+
+    });
+
+}
+
+
+
+
+async function sendDeviceCommand(command){
+
+    await fetch(`/issue_iot_device_command/${deviceId}`,{
+
+        method:"POST",
+
+        headers:{
+            "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+            command:command
+        })
+
+    });
+
+    loadDeviceCommands();
+
+}
+
+
+
+
+async function loadDeviceAlarmHistory(){
+    const res = await fetch(`/iot_device_alarm_history/${deviceId}`);
+    allDeviceAlarmHistory = await res.json();
+
+    renderDeviceAlarmHistory();
+}
+
+
+
+function renderDeviceAlarmHistory(){
+    const filter =
+        document.getElementById("deviceAlarmHistoryFilter").value;
+
+    const body =
+        document.getElementById("deviceAlarmHistoryTable");
+
+    body.innerHTML = "";
+
+    allDeviceAlarmHistory
+        .filter(a => !filter || a.status === filter)
+        .forEach(a => {
+            const severityClass =
+                a.severity === "CRITICAL" ? "red" :
+                a.severity === "WARNING" ? "orange" :
+                "green";
+
+            body.innerHTML += `
+            <tr>
+                <td>${a.alarm_name}</td>
+                <td class="${severityClass}">${a.severity}</td>
+                <td>${a.status}</td>
+                <td>${a.description}</td>
+                <td>${a.first_seen}</td>
+                <td>${a.last_seen}</td>
+            </tr>`;
+        });
+}
+
+
+
+async function ackDeviceAlarm(alarmId){
+    const res = await fetch(`/ack_iot_device_alarm/${alarmId}`, {
+        method: "POST"
+    });
+
+    const result = await res.json();
+
+    alert(result.message);
+
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+}
+
+
+
+
+async function loadDeviceAlarmSummary(){
+    const res = await fetch(`/iot_device_alarm_summary/${deviceId}`);
+    const data = await res.json();
+
+    document.getElementById("totalDeviceAlarms").innerText = data.total;
+    document.getElementById("criticalDeviceAlarms").innerText = data.critical;
+    document.getElementById("warningDeviceAlarms").innerText = data.warning;
+    document.getElementById("activeDeviceAlarms").innerText = data.active;
+}
+
+
+
+
+async function loadDeviceAlarms(){
+    const res = await fetch(`/iot_device_alarms/${deviceId}`);
+    const alarms = await res.json();
+
+    const body = document.getElementById("deviceAlarmTable");
+    body.innerHTML = "";
+
+    if(alarms.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="5">No active device alarms</td>
+        </tr>`;
+        return;
+    }
+
+    alarms.forEach(a => {
+        const severityClass =
+            a.severity === "CRITICAL" ? "red" :
+            a.severity === "WARNING" ? "orange" :
+            "green";
+
+        body.innerHTML += `
+        <tr>
+            <td>${a.alarm_name}</td>
+            <td class="${severityClass}">${a.severity}</td>
+            <td>${a.status}</td>
+            <td>${a.description}</td>
+            <td>${a.last_seen}</td>
+            <td>
+                <button onclick="ackDeviceAlarm(${a.id})">
+                    ACK
+                </button>
+            </td>
+
+        </tr>`;
+    });
+}
+
+
+
+async function loadTelemetrySummary(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const findValue = (key) => {
+        const item = data.find(t => t.telemetry_key === key);
+        return item ? `${item.telemetry_value} ${item.unit}` : "--";
+    };
+
+    document.getElementById("telemetryVoltage").innerText =
+        findValue("voltage");
+
+    document.getElementById("telemetryCurrent").innerText =
+        findValue("current");
+
+    document.getElementById("telemetryPower").innerText =
+        findValue("power");
+
+    document.getElementById("telemetryEnergy").innerText =
+        findValue("energy");
+}
+
+
+
+
+
+
+async function loadTelemetryChart(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const labels = data.map(t => t.telemetry_key);
+    const values = data.map(t => t.telemetry_value);
+
+    const ctx =
+        document.getElementById("telemetryChart")
+        .getContext("2d");
+
+    if(telemetryChart){
+        telemetryChart.destroy();
+    }
+
+    telemetryChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Telemetry Value",
+                data: values
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            plugins: {
+                legend: {
+                    labels: {
+                        color: "white"
+                    }
+                }
+            },
+
+            scales: {
+                x: {
+                    ticks: {
+                        color: "white"
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: "white"
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+
+
+
+
+async function loadDeviceDetails(){
+    const res = await fetch(`/iot_device_details/${deviceId}`);
+    const d = await res.json();
+
+    document.getElementById("deviceName").innerText = d.device_name;
+    document.getElementById("deviceEui").innerText = d.device_eui;
+    document.getElementById("deviceType").innerText = d.device_type;
+    document.getElementById("gatewayName").innerText = d.gateway_name;
+    document.getElementById("site").innerText = d.site;
+
+    const statusEl = document.getElementById("status");
+    statusEl.innerText = d.status;
+
+    statusEl.className =
+        d.status === "ONLINE" ? "value green" :
+        d.status === "OFFLINE" ? "value red" :
+        "value orange";
+
+    document.getElementById("battery").innerText = d.battery_level + "%";
+    document.getElementById("rssi").innerText = d.rssi;
+    document.getElementById("snr").innerText = d.snr;
+    document.getElementById("firmware").innerText = d.firmware_version;
+    document.getElementById("lastSeen").innerText = d.last_seen;
+    document.getElementById("isActive").innerText = d.is_active ? "YES" : "NO";
+}
+
+
+async function loadTelemetry(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("telemetryTable");
+
+    body.innerHTML = "";
+
+    if(data.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="4">No telemetry available</td>
+        </tr>`;
+        return;
+    }
+
+    data.forEach(t=>{
+
+        body.innerHTML += `
+        <tr>
+            <td>${t.telemetry_key}</td>
+            <td>${t.telemetry_value}</td>
+            <td>${t.unit}</td>
+            <td>${t.recorded_at}</td>
+        </tr>`;
+    });
+}
+
+
+
+loadDeviceDetails();
+loadTelemetry();
+loadTelemetryChart();
+loadTelemetrySummary();
+loadDeviceAlarms();
+loadDeviceAlarmSummary();
+loadDeviceAlarmHistory();
+loadDeviceCommands();
+loadFirmwareUpdates();
+loadFirmwareOptions(); 
+
+
+
+setInterval(() => {
+    loadDeviceDetails();
+    loadTelemetry();
+    loadTelemetryChart();
+    loadTelemetrySummary();
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+    loadDeviceAlarmHistory();
+    loadDeviceCommands();
+    loadFirmwareUpdates();
+    loadFirmwareOptions();
+},10000);
+</script>
+
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+<title>IoT Device Details</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<style>
+body{
+    font-family:Arial;
+    background:#111827;
+    color:white;
+    padding:20px;
+}
+
+.card{
+    background:#1f2937;
+    padding:20px;
+    border-radius:8px;
+    margin-top:15px;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:15px;
+}
+
+.value{
+    font-size:32px;
+    font-weight:bold;
+}
+
+.green{color:#00ff66;}
+.orange{color:#f59e0b;}
+.red{color:#ff4444;}
+
+.btn{
+    background:#2563eb;
+    color:white;
+    padding:8px 12px;
+    border-radius:5px;
+    text-decoration:none;
+}
+
+
+
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+
+th, td{
+    padding:12px;
+    border-bottom:1px solid #374151;
+    text-align:left;
+}
+
+th{
+    background:#111827;
+}
+
+
+</style>
+</head>
+
+<body>
+
+<h2>📟 IoT Device Details</h2>
+
+<a href="/gateway_details_page/1" class="btn">Back to Gateway</a>
+
+<div class="card">
+    <h3 id="deviceName">Loading...</h3>
+    <p><b>EUI:</b> <span id="deviceEui">--</span></p>
+    <p><b>Type:</b> <span id="deviceType">--</span></p>
+    <p><b>Gateway:</b> <span id="gatewayName">--</span></p>
+    <p><b>Site:</b> <span id="site">--</span></p>
+</div>
+
+<div class="grid">
+    <div class="card">
+        Status<br>
+        <span class="value" id="status">--</span>
+    </div>
+
+    <div class="card">
+        Battery<br>
+        <span class="value" id="battery">--</span>
+    </div>
+
+    <div class="card">
+        RSSI<br>
+        <span class="value" id="rssi">--</span>
+    </div>
+
+    <div class="card">
+        SNR<br>
+        <span class="value" id="snr">--</span>
+    </div>
+</div>
+
+<div class="card">
+    <p><b>Firmware:</b> <span id="firmware">--</span></p>
+    <p><b>Last Seen:</b> <span id="lastSeen">--</span></p>
+    <p><b>Active:</b> <span id="isActive">--</span></p>
+</div>
+
+
+
+
+<div class="card">
+
+    <h3>📈 Device Telemetry</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+                <th>Unit</th>
+                <th>Recorded At</th>
+            </tr>
+        </thead>
+
+        <tbody id="telemetryTable">
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+
+<div class="grid">
+    <div class="card">
+        Voltage<br>
+        <span class="value" id="telemetryVoltage">--</span>
+    </div>
+
+    <div class="card">
+        Current<br>
+        <span class="value" id="telemetryCurrent">--</span>
+    </div>
+
+    <div class="card">
+        Power<br>
+        <span class="value" id="telemetryPower">--</span>
+    </div>
+
+    <div class="card">
+        Energy<br>
+        <span class="value" id="telemetryEnergy">--</span>
+    </div>
+</div>
+
+
+
+
+
+
+<div class="card">
+    <h3>📊 Device Telemetry Chart</h3>
+    <div style="height:350px;">
+        <canvas id="telemetryChart"></canvas>
+    </div>
+</div>
+
+
+
+<div class="grid">
+    <div class="card">
+        Total Device Alarms<br>
+        <span class="value" id="totalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Critical<br>
+        <span class="value red" id="criticalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Warning<br>
+        <span class="value orange" id="warningDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Active<br>
+        <span class="value" id="activeDeviceAlarms">--</span>
+    </div>
+</div>
+
+
+
+
+<div class="card">
+    <h3>🚨 Device Active Alarms</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Alarm</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Description</th>
+                <th>Last Seen</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceAlarmTable"></tbody>
+    </table>
+</div>
+
+
+
+
+<div style="margin-bottom:15px;">
+    <select id="deviceAlarmHistoryFilter" onchange="renderDeviceAlarmHistory()" style="padding:8px;">
+        <option value="">All Alarms</option>
+        <option value="ACTIVE">ACTIVE</option>
+        <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
+    </select>
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>📜 Device Alarm History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Alarm</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Description</th>
+                <th>First Seen</th>
+                <th>Last Seen</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceAlarmHistoryTable"></tbody>
+    </table>
+</div>
+
+
+
+<div class="card">
+
+    <h3>🛰 Device Command Center</h3>
+
+    <button onclick="sendDeviceCommand('Ping Device')">
+        Ping Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Restart Device')">
+        Restart Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Request Telemetry')">
+        Request Telemetry
+    </button>
+
+</div>
+
+
+
+<div class="card">
+
+    <h3>📜 Device Command History</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Command</th>
+                <th>Status</th>
+                <th>Issued By</th>
+                <th>Issued At</th>
+                <th>Completed</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceCommandTable">
+
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>⬆️ Firmware Update</h3>
+
+    <label>Target Version</label>
+
+    <select id="targetFirmwareVersion" style="padding:8px; width:250px;">
+        <option value="">Select firmware</option>
+    </select>
+    
+    <button onclick="requestFirmwareUpdate()">
+        Request Update
+    </button>
+
+    <p id="firmwareUpdateMessage"></p>
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>Firmware Rollback and Recovery</h3>
+
+    <p>
+        <b>Current Firmware:</b>
+        <span id="rollbackCurrentVersion">--</span>
+    </p>
+
+    <label for="rollbackVersion">
+        <b>Known-Good Rollback Version</b>
+    </label>
+
+    <select id="rollbackVersion">
+        <option value="">Select rollback version</option>
+    </select>
+
+    <textarea id="rollbackReason" placeholder="Enter rollback reason"
+        style="width:100%; margin-top:10px; padding:10px;"></textarea>
+
+    <button onclick="requestFirmwareRollback()" style="margin-top:10px; background:#dc2626;">
+        Roll Back Firmware
+    </button>
+
+    <p id="rollbackMessage"></p>
+</div>
+
+
+
+
+
+
+<div class="card">
+    <h3>📜 Firmware Update History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Current</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Requested At</th>
+                <th>Completed At</th>
+            </tr>
+        </thead>
+
+        <tbody id="firmwareUpdateTable"></tbody>
+    </table>
+</div>
+
+
+
+
+<script>
+
+
+
+
+let telemetryChart = null;
+let allDeviceAlarmHistory = [];
+const deviceId = Number("{{ device_id }}");
+
+
+const socket = io();
+
+socket.on("connect", () => {
+    console.log("Device page socket connected:", socket.id);
+});
+
+socket.on("device_command_update", (data) => {
+    console.log("Device command update:", data);
+
+    if(data.device_id === deviceId){
+        loadDeviceCommands();
+    }
+});
+
+
+
+
+    function versionToNumber(version) {
+        return Number(
+            version.replace("v", "").replaceAll(".", "")
+        );
+    }
+
+    async function loadFirmwareOptions() {
+
+        const deviceType =
+            document.getElementById("deviceType").innerText;
+
+        const currentFirmware =
+            document.getElementById("firmware").innerText;
+
+        const res =
+            await fetch(`/firmware_repository/${encodeURIComponent(deviceType)}`);
+
+        const firmware = await res.json();
+
+        const select =
+            document.getElementById("targetFirmwareVersion");
+
+        select.innerHTML =
+            `<option value="">Select firmware</option>`;
+
+        firmware
+            .filter(f =>
+                versionToNumber(f.version) >
+                versionToNumber(currentFirmware)
+            )
+            .forEach(f => {
+                select.innerHTML += `
+            <option value="${f.version}">
+                ${f.version}
+            </option>`;
+            });
+    }
+
+
+socket.on("firmware_update", function(data){
+
+    if(data.device_id != deviceId)
+        return;
+
+    console.log("Firmware update:", data);
+
+    loadFirmwareUpdates();
+    loadDeviceDetails();
+    loadFirmwareOptions();
+});
+
+
+
+async function requestFirmwareUpdate(){
+    const targetVersion =
+        document.getElementById("targetFirmwareVersion").value;
+
+    if (!targetVersion) {
+        document.getElementById("firmwareUpdateMessage").innerText =
+            "Please select a firmware version";
+        return;
+    }
+
+    const res = await fetch(`/request_firmware_update/${deviceId}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            target_version: targetVersion
+        })
+    });
+
+    const result = await res.json();
+
+    document.getElementById("firmwareUpdateMessage").innerText =
+        result.message;
+
+    loadFirmwareUpdates();
+}
+
+async function loadFirmwareUpdates(){
+    const res = await fetch(`/iot_device_firmware_updates/${deviceId}`);
+    const updates = await res.json();
+
+    const body = document.getElementById("firmwareUpdateTable");
+    body.innerHTML = "";
+
+    updates.forEach(u => {
+        const statusClass =
+            u.update_status === "SUCCESS" ? "green" :
+            u.update_status === "FAILED" ? "red" :
+            u.update_status === "RUNNING" ? "orange" :
+            "";
+
+        body.innerHTML += `
+        <tr>
+            <td>${u.current_version}</td>
+            <td>${u.target_version}</td>
+            <td class="${statusClass}">${u.update_status}</td>
+            <td>${u.progress}%</td>
+            <td>${u.requested_at}</td>
+            <td>${u.completed_at}</td>
+        </tr>`;
+    });
+}
+
+
+
+
+
+
+
+async function retryDeviceCommand(commandId){
+
+    await fetch(`/retry_iot_device_command/${commandId}`,{
+        method:"POST"
+    });
+
+    loadDeviceCommands();
+
+}
+
+
+
+
+async function loadDeviceCommands(){
+
+    const response =
+        await fetch(`/iot_device_command_queue/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("deviceCommandTable");
+
+    body.innerHTML = "";
+
+    data.forEach(c=>{
+
+        let statusClass="";
+
+        if (c.command_status === "SUCCESS")
+            statusClass = "green";
+
+        else if (c.command_status === "FAILED")
+            statusClass = "red";
+
+        else if (c.command_status === "RUNNING")
+            statusClass = "orange";
+
+        else
+            statusClass = "";
+
+        body.innerHTML += `
+        <tr>
+
+            <td>${c.command_name}</td>
+
+            <td class="${statusClass}">
+                ${c.command_status}
+            </td>
+
+            <td>${c.issued_by}</td>
+
+            <td>${c.issued_at}</td>
+
+            <td>${c.completed_at}</td>
+
+                <td>
+
+                    ${c.command_status === "FAILED"
+                                    ?
+                                    `<button onclick="retryDeviceCommand(${c.id})">
+                            Retry
+                        </button>`
+                                    :
+                                    "-"
+                    }
+
+                </td>
+
+        </tr>
+        `;
+
+    });
+
+}
+
+
+
+
+async function sendDeviceCommand(command){
+
+    await fetch(`/issue_iot_device_command/${deviceId}`,{
+
+        method:"POST",
+
+        headers:{
+            "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+            command:command
+        })
+
+    });
+
+    loadDeviceCommands();
+
+}
+
+
+
+
+async function loadDeviceAlarmHistory(){
+    const res = await fetch(`/iot_device_alarm_history/${deviceId}`);
+    allDeviceAlarmHistory = await res.json();
+
+    renderDeviceAlarmHistory();
+}
+
+
+
+function renderDeviceAlarmHistory(){
+    const filter =
+        document.getElementById("deviceAlarmHistoryFilter").value;
+
+    const body =
+        document.getElementById("deviceAlarmHistoryTable");
+
+    body.innerHTML = "";
+
+    allDeviceAlarmHistory
+        .filter(a => !filter || a.status === filter)
+        .forEach(a => {
+            const severityClass =
+                a.severity === "CRITICAL" ? "red" :
+                a.severity === "WARNING" ? "orange" :
+                "green";
+
+            body.innerHTML += `
+            <tr>
+                <td>${a.alarm_name}</td>
+                <td class="${severityClass}">${a.severity}</td>
+                <td>${a.status}</td>
+                <td>${a.description}</td>
+                <td>${a.first_seen}</td>
+                <td>${a.last_seen}</td>
+            </tr>`;
+        });
+}
+
+
+
+async function ackDeviceAlarm(alarmId){
+    const res = await fetch(`/ack_iot_device_alarm/${alarmId}`, {
+        method: "POST"
+    });
+
+    const result = await res.json();
+
+    alert(result.message);
+
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+}
+
+
+
+
+async function loadDeviceAlarmSummary(){
+    const res = await fetch(`/iot_device_alarm_summary/${deviceId}`);
+    const data = await res.json();
+
+    document.getElementById("totalDeviceAlarms").innerText = data.total;
+    document.getElementById("criticalDeviceAlarms").innerText = data.critical;
+    document.getElementById("warningDeviceAlarms").innerText = data.warning;
+    document.getElementById("activeDeviceAlarms").innerText = data.active;
+}
+
+
+
+
+async function loadDeviceAlarms(){
+    const res = await fetch(`/iot_device_alarms/${deviceId}`);
+    const alarms = await res.json();
+
+    const body = document.getElementById("deviceAlarmTable");
+    body.innerHTML = "";
+
+    if(alarms.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="5">No active device alarms</td>
+        </tr>`;
+        return;
+    }
+
+    alarms.forEach(a => {
+        const severityClass =
+            a.severity === "CRITICAL" ? "red" :
+            a.severity === "WARNING" ? "orange" :
+            "green";
+
+        body.innerHTML += `
+        <tr>
+            <td>${a.alarm_name}</td>
+            <td class="${severityClass}">${a.severity}</td>
+            <td>${a.status}</td>
+            <td>${a.description}</td>
+            <td>${a.last_seen}</td>
+            <td>
+                <button onclick="ackDeviceAlarm(${a.id})">
+                    ACK
+                </button>
+            </td>
+
+        </tr>`;
+    });
+}
+
+
+
+async function loadTelemetrySummary(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const findValue = (key) => {
+        const item = data.find(t => t.telemetry_key === key);
+        return item ? `${item.telemetry_value} ${item.unit}` : "--";
+    };
+
+    document.getElementById("telemetryVoltage").innerText =
+        findValue("voltage");
+
+    document.getElementById("telemetryCurrent").innerText =
+        findValue("current");
+
+    document.getElementById("telemetryPower").innerText =
+        findValue("power");
+
+    document.getElementById("telemetryEnergy").innerText =
+        findValue("energy");
+}
+
+
+
+
+
+
+async function loadTelemetryChart(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const labels = data.map(t => t.telemetry_key);
+    const values = data.map(t => t.telemetry_value);
+
+    const ctx =
+        document.getElementById("telemetryChart")
+        .getContext("2d");
+
+    if(telemetryChart){
+        telemetryChart.destroy();
+    }
+
+    telemetryChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Telemetry Value",
+                data: values
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            plugins: {
+                legend: {
+                    labels: {
+                        color: "white"
+                    }
+                }
+            },
+
+            scales: {
+                x: {
+                    ticks: {
+                        color: "white"
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: "white"
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+
+
+
+
+async function loadDeviceDetails(){
+    const res = await fetch(`/iot_device_details/${deviceId}`);
+    const d = await res.json();
+
+    document.getElementById("deviceName").innerText = d.device_name;
+    document.getElementById("deviceEui").innerText = d.device_eui;
+    document.getElementById("deviceType").innerText = d.device_type;
+    document.getElementById("gatewayName").innerText = d.gateway_name;
+    document.getElementById("site").innerText = d.site;
+
+    const statusEl = document.getElementById("status");
+    statusEl.innerText = d.status;
+
+    statusEl.className =
+        d.status === "ONLINE" ? "value green" :
+        d.status === "OFFLINE" ? "value red" :
+        "value orange";
+
+    document.getElementById("battery").innerText = d.battery_level + "%";
+    document.getElementById("rssi").innerText = d.rssi;
+    document.getElementById("snr").innerText = d.snr;
+    document.getElementById("firmware").innerText = d.firmware_version;
+    document.getElementById("lastSeen").innerText = d.last_seen;
+    document.getElementById("isActive").innerText = d.is_active ? "YES" : "NO";
+}
+
+
+async function loadTelemetry(){
+
+    const response =
+        await fetch(`/iot_device_telemetry/${deviceId}`);
+
+    const data = await response.json();
+
+    const body =
+        document.getElementById("telemetryTable");
+
+    body.innerHTML = "";
+
+    if(data.length === 0){
+        body.innerHTML = `
+        <tr>
+            <td colspan="4">No telemetry available</td>
+        </tr>`;
+        return;
+    }
+
+    data.forEach(t=>{
+
+        body.innerHTML += `
+        <tr>
+            <td>${t.telemetry_key}</td>
+            <td>${t.telemetry_value}</td>
+            <td>${t.unit}</td>
+            <td>${t.recorded_at}</td>
+        </tr>`;
+    });
+}
+
+
+
+loadDeviceDetails();
+loadTelemetry();
+loadTelemetryChart();
+loadTelemetrySummary();
+loadDeviceAlarms();
+loadDeviceAlarmSummary();
+loadDeviceAlarmHistory();
+loadDeviceCommands();
+loadFirmwareUpdates();
+loadFirmwareOptions(); 
+
+
+
+setInterval(() => {
+    loadDeviceDetails();
+    loadTelemetry();
+    loadTelemetryChart();
+    loadTelemetrySummary();
+    loadDeviceAlarms();
+    loadDeviceAlarmSummary();
+    loadDeviceAlarmHistory();
+    loadDeviceCommands();
+    loadFirmwareUpdates();
+    loadFirmwareOptions();
+},10000);
+</script>
+
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+<title>IoT Device Details</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<style>
+body{
+    font-family:Arial;
+    background:#111827;
+    color:white;
+    padding:20px;
+}
+
+.card{
+    background:#1f2937;
+    padding:20px;
+    border-radius:8px;
+    margin-top:15px;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:15px;
+}
+
+.value{
+    font-size:32px;
+    font-weight:bold;
+}
+
+.green{color:#00ff66;}
+.orange{color:#f59e0b;}
+.red{color:#ff4444;}
+
+.btn{
+    background:#2563eb;
+    color:white;
+    padding:8px 12px;
+    border-radius:5px;
+    text-decoration:none;
+}
+
+
+
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+
+th, td{
+    padding:12px;
+    border-bottom:1px solid #374151;
+    text-align:left;
+}
+
+th{
+    background:#111827;
+}
+
+
+</style>
+</head>
+
+<body>
+
+<h2>📟 IoT Device Details</h2>
+
+<a href="/gateway_details_page/1" class="btn">Back to Gateway</a>
+
+<div class="card">
+    <h3 id="deviceName">Loading...</h3>
+    <p><b>EUI:</b> <span id="deviceEui">--</span></p>
+    <p><b>Type:</b> <span id="deviceType">--</span></p>
+    <p><b>Gateway:</b> <span id="gatewayName">--</span></p>
+    <p><b>Site:</b> <span id="site">--</span></p>
+</div>
+
+<div class="grid">
+    <div class="card">
+        Status<br>
+        <span class="value" id="status">--</span>
+    </div>
+
+    <div class="card">
+        Battery<br>
+        <span class="value" id="battery">--</span>
+    </div>
+
+    <div class="card">
+        RSSI<br>
+        <span class="value" id="rssi">--</span>
+    </div>
+
+    <div class="card">
+        SNR<br>
+        <span class="value" id="snr">--</span>
+    </div>
+</div>
+
+<div class="card">
+    <p><b>Firmware:</b> <span id="firmware">--</span></p>
+    <p><b>Last Seen:</b> <span id="lastSeen">--</span></p>
+    <p><b>Active:</b> <span id="isActive">--</span></p>
+</div>
+
+
+
+
+<div class="card">
+
+    <h3>📈 Device Telemetry</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+                <th>Unit</th>
+                <th>Recorded At</th>
+            </tr>
+        </thead>
+
+        <tbody id="telemetryTable">
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+
+<div class="grid">
+    <div class="card">
+        Voltage<br>
+        <span class="value" id="telemetryVoltage">--</span>
+    </div>
+
+    <div class="card">
+        Current<br>
+        <span class="value" id="telemetryCurrent">--</span>
+    </div>
+
+    <div class="card">
+        Power<br>
+        <span class="value" id="telemetryPower">--</span>
+    </div>
+
+    <div class="card">
+        Energy<br>
+        <span class="value" id="telemetryEnergy">--</span>
+    </div>
+</div>
+
+
+
+
+
+
+<div class="card">
+    <h3>📊 Device Telemetry Chart</h3>
+    <div style="height:350px;">
+        <canvas id="telemetryChart"></canvas>
+    </div>
+</div>
+
+
+
+<div class="grid">
+    <div class="card">
+        Total Device Alarms<br>
+        <span class="value" id="totalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Critical<br>
+        <span class="value red" id="criticalDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Warning<br>
+        <span class="value orange" id="warningDeviceAlarms">--</span>
+    </div>
+
+    <div class="card">
+        Active<br>
+        <span class="value" id="activeDeviceAlarms">--</span>
+    </div>
+</div>
+
+
+
+
+<div class="card">
+    <h3>🚨 Device Active Alarms</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Alarm</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Description</th>
+                <th>Last Seen</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceAlarmTable"></tbody>
+    </table>
+</div>
+
+
+
+
+<div style="margin-bottom:15px;">
+    <select id="deviceAlarmHistoryFilter" onchange="renderDeviceAlarmHistory()" style="padding:8px;">
+        <option value="">All Alarms</option>
+        <option value="ACTIVE">ACTIVE</option>
+        <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
+    </select>
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>📜 Device Alarm History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Alarm</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Description</th>
+                <th>First Seen</th>
+                <th>Last Seen</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceAlarmHistoryTable"></tbody>
+    </table>
+</div>
+
+
+
+<div class="card">
+
+    <h3>🛰 Device Command Center</h3>
+
+    <button onclick="sendDeviceCommand('Ping Device')">
+        Ping Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Restart Device')">
+        Restart Device
+    </button>
+
+    <button onclick="sendDeviceCommand('Request Telemetry')">
+        Request Telemetry
+    </button>
+
+</div>
+
+
+
+<div class="card">
+
+    <h3>📜 Device Command History</h3>
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>Command</th>
+                <th>Status</th>
+                <th>Issued By</th>
+                <th>Issued At</th>
+                <th>Completed</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody id="deviceCommandTable">
+
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+<div class="card">
+    <h3>⬆️ Firmware Update</h3>
+
+    <label>Target Version</label>
+
+    <select id="targetFirmwareVersion" style="padding:8px; width:250px;">
+        <option value="">Select firmware</option>
+    </select>
+    
+    <button onclick="requestFirmwareUpdate()">
+        Request Update
+    </button>
+
+    <p id="firmwareUpdateMessage"></p>
+</div>
+
+
+
+<div class="card">
+    <h3>📜 Firmware Update History</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Current</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Requested At</th>
+                <th>Completed At</th>
+            </tr>
+        </thead>
+
+        <tbody id="firmwareUpdateTable"></tbody>
+    </table>
+</div>
+
+
+
+
+<script>
+
+
+
+
+let telemetryChart = null;
+let allDeviceAlarmHistory = [];
+const deviceId = Number("{{ device_id }}");
+
+
+const socket = io();
+
+socket.on("connect", () => {
+    console.log("Device page socket connected:", socket.id);
+});
+
+socket.on("device_command_update", (data) => {
+    console.log("Device command update:", data);
+
+    if(data.device_id === deviceId){
+        loadDeviceCommands();
+    }
+});
+
+
+
+
+    function versionToNumber(version) {
+        return Number(
+            version.replace("v", "").replaceAll(".", "")
+        );
+    }
+
+    async function loadFirmwareOptions() {
+
+        const deviceType =
+            document.getElementById("deviceType").innerText;
+
+        const currentFirmware =
+            document.getElementById("firmware").innerText;
+
+        const res =
+            await fetch(`/firmware_repository/${encodeURIComponent(deviceType)}`);
+
+        const firmware = await res.json();
+
+        const select =
+            document.getElementById("targetFirmwareVersion");
+
+        select.innerHTML =
+            `<option value="">Select firmware</option>`;
+
+        firmware
+            .filter(f =>
+                versionToNumber(f.version) >
+                versionToNumber(currentFirmware)
+            )
+            .forEach(f => {
+                select.innerHTML += `
+            <option value="${f.version}">
+                ${f.version}
+            </option>`;
+            });
+    }
 
 
 socket.on("firmware_update", function(data){

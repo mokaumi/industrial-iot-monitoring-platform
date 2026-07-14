@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Campaign Details</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<style>
+body{font-family:Arial;background:#111827;color:white;padding:20px}
+.card{background:#1f2937;padding:20px;border-radius:8px;margin-top:15px}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:15px}
+.value{font-size:28px;font-weight:bold}
+table{width:100%;border-collapse:collapse;margin-top:20px}
+th,td{padding:12px;border-bottom:1px solid #374151}
+th{background:#111827}
+.green{color:#00ff66}
+.orange{color:#f59e0b}
+.red{color:#ff4444}
+.btn{background:#2563eb;color:white;padding:10px 15px;border-radius:5px;text-decoration:none}
+
+.progressBox{
+    background:#374151;
+    width:100%;
+    height:18px;
+    border-radius:10px;
+    overflow:hidden;
+}
+
+.progressFill{
+    height:100%;
+    background:#00ff66;
+    text-align:center;
+    font-size:12px;
+    color:black;
+    font-weight:bold;
+}
+
+
+
+.campaignProgressBox{
+    background:#374151;
+    width:100%;
+    height:28px;
+    border-radius:15px;
+    overflow:hidden;
+    margin-top:15px;
+}
+
+.campaignProgressFill{
+    height:100%;
+    background:#00ff66;
+    text-align:center;
+    color:black;
+    font-weight:bold;
+    line-height:28px;
+}
+
+
+</style>
+</head>
+
+<body>
+
+<h2>📦 Firmware Campaign Details</h2>
+
+<a href="/firmware_campaign_dashboard" class="btn">Back to Campaign Dashboard</a>
+
+<div class="card">
+    <h3 id="campaignName">Loading...</h3>
+
+    <p><b>Device Type:</b> <span id="deviceType">--</span></p>
+    <p><b>Target Version:</b> <span id="targetVersion">--</span></p>
+    <p><b>Status:</b> <span id="campaignStatus">--</span></p>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+        <b>Campaign Progress</b>
+    </div>
+    
+    <div class="campaignProgressBox">
+        <div id="campaignProgressFill" class="campaignProgressFill">
+            0%
+        </div>
+    </div>
+</div>
+
+<div class="grid">
+    <div class="card">Total<br><span class="value" id="total">--</span></div>
+    <div class="card">Pending<br><span class="value" id="pending">--</span></div>
+    <div class="card">Running<br><span class="value" id="running">--</span></div>
+    <div class="card">Success<br><span class="value green" id="success">--</span></div>
+    <div class="card">Failed<br><span class="value red" id="failed">--</span></div>
+</div>
+
+
+
+
+<div style="margin-top:20px">
+
+    <button id="retryFailedBtn" class="primaryBtn" onclick="retryFailedDevices()" style="display:none">
+
+        Retry Failed Devices
+
+    </button>
+
+</div>
+
+
+
+<div style="margin-top:20px">
+    <button id="retryFailedBtn" class="btn" onclick="retryFailedDevices()" style="display:none">
+        Retry Failed Devices
+    </button>
+
+
+
+    <button id="retryCanaryBtn" class="btn" onclick="retryCanaryCampaign()" style="display:none; background:#7c3aed;">
+        Retry Canary
+    </button>
+
+
+
+    <button id="pauseCampaignBtn" class="btn" onclick="pauseCampaign()" style="display:none; background:#f59e0b;">
+        Pause Campaign
+    </button>
+</div>
+
+
+
+
+<div style="margin-top:20px">
+    <button id="retryFailedBtn" class="btn" onclick="retryFailedDevices()" style="display:none;">
+        Retry Failed Devices
+    </button>
+
+    <button id="pauseCampaignBtn" class="btn" onclick="pauseCampaign()" style="display:none; background:#f59e0b;">
+        Pause Campaign
+    </button>
+
+    <button id="resumeCampaignBtn" class="btn" onclick="resumeCampaign()" style="display:none; background:#16a34a;">
+        Resume Campaign
+    </button>
+
+    <button id="cancelCampaignBtn" class="btn" onclick="cancelCampaign()" style="display:none; background:#dc2626;">
+        Cancel Campaign
+    </button>
+</div>
+
+
+
+
+
+
+<div class="card">
+    <h3>Devices in Campaign</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Device</th>
+                <th>EUI</th>
+                <th>Current</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Requested</th>
+                <th>Completed</th>
+                <th>Error</th>
+            </tr>
+        </thead>
+        <tbody id="deviceTable"></tbody>
+    </table>
+</div>
+
+<script>
+const campaignId = Number("{{ campaign_id }}");
+const socket = io();
+
+socket.on("firmware_campaign_update", () => {
+    loadCampaignDetails();
+});
+
+
+
+async function retryCanaryCampaign() {
+
+    const confirmed = confirm(
+        "Retry the failed Canary device(s)?\n\n" +
+        "The remaining fleet will stay blocked until " +
+        "the Canary retry succeeds."
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const res = await fetch(
+            `/retry_canary_campaign/${campaignId}`,
+            {
+                method: "POST"
+            }
+        );
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert(
+                data.message ||
+                "Could not retry Canary devices"
+            );
+            return;
+        }
+
+        alert(data.message);
+
+        loadCampaignDetails();
+
+    } catch (error) {
+        console.error(
+            "Retry Canary request failed:",
+            error
+        );
+
+        alert("Could not retry Canary devices");
+    }
+}
+
+
+
+
+
+async function resumeCampaign() {
+    if (!confirm("Resume this campaign and continue releasing rollout waves?")) {
+        return;
+    }
+
+    try {
+        const res = await fetch(
+            `/resume_campaign/${campaignId}`,
+            { method: "POST" }
+        );
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert(data.message || "Could not resume campaign");
+            return;
+        }
+
+        alert(data.message);
+        loadCampaignDetails();
+
+    } catch (error) {
+        console.error("Resume campaign request failed:", error);
+        alert("Could not resume campaign");
+    }
+}
+
+
+async function cancelCampaign() {
+    const confirmed = confirm(
+        "Cancel this campaign permanently?\n\n" +
+        "No new rollout waves will be released. " +
+        "Pending jobs will be cancelled, while a job already running may finish."
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const res = await fetch(
+            `/cancel_campaign/${campaignId}`,
+            { method: "POST" }
+        );
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert(data.message || "Could not cancel campaign");
+            return;
+        }
+
+        alert(data.message);
+        loadCampaignDetails();
+
+    } catch (error) {
+        console.error("Cancel campaign request failed:", error);
+        alert("Could not cancel campaign");
+    }
+}
+
+
+
+
+async function retryFailedDevices() {
+    const confirmed = confirm(
+        "Retry firmware updates for all failed devices?"
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const res = await fetch(
+            `/retry_failed_campaign_devices/${campaignId}`,
+            {
+                method: "POST"
+            }
+        );
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert(data.message || "Failed to create retry jobs");
+            return;
+        }
+
+        alert(data.message);
+
+        loadCampaignDetails();
+
+    } catch (error) {
+        console.error("Retry request failed:", error);
+        alert("Could not retry failed devices");
+    }
+}
+
+
+
+
+
+async function pauseCampaign() {
+    const confirmed = confirm(
+        "Pause this campaign?\n\n" +
+        "Devices already updating will continue, " +
+        "but no new rollout wave will be released."
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const res = await fetch(
+            `/pause_campaign/${campaignId}`,
+            {
+                method: "POST"
+            }
+        );
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert(data.message || "Could not pause campaign");
+            return;
+        }
+
+        alert(data.message);
+        loadCampaignDetails();
+
+    } catch (error) {
+        console.error("Pause campaign request failed:", error);
+        alert("Could not pause campaign");
+    }
+}
+
+
+
+
+
+
+async function loadCampaignDetails() {
+    try {
+        const res = await fetch(
+            `/firmware_campaign_details/${campaignId}`
+        );
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            console.error(data);
+            return;
+        }
+
+        const c = data.campaign;
+
+        document.getElementById("campaignName").innerText =
+            c.campaign_name;
+
+        document.getElementById("deviceType").innerText =
+            c.device_type;
+
+        document.getElementById("targetVersion").innerText =
+            c.target_version;
+
+        document.getElementById("campaignStatus").innerText =
+            c.campaign_status;
+
+        document.getElementById("total").innerText =
+            c.total_devices;
+
+        document.getElementById("pending").innerText =
+            c.pending_count;
+
+        document.getElementById("running").innerText =
+            c.running_count;
+
+        document.getElementById("success").innerText =
+            c.success_count;
+
+        document.getElementById("failed").innerText =
+            c.failed_count;
+
+
+        const retryBtn =
+            document.getElementById("retryFailedBtn");
+
+        const pauseBtn =
+            document.getElementById("pauseCampaignBtn");
+
+        const resumeBtn =
+            document.getElementById("resumeCampaignBtn");
+
+        const cancelBtn =
+            document.getElementById("cancelCampaignBtn");
+
+        const retryCanaryBtn =
+            document.getElementById("retryCanaryBtn");
+
+
+        const isFailedCanary =
+            (
+                c.rollout_type === "CANARY" &&
+                c.campaign_status === "PAUSED" &&
+                c.canary_status === "CANARY_FAILED"
+            );
+
+
+        // Retry failed Canary
+        retryCanaryBtn.style.display =
+            isFailedCanary
+                ? "inline-block"
+                : "none";
+
+
+        // Retry normal failed devices
+        retryBtn.style.display =
+            (
+                c.failed_count > 0 &&
+                c.campaign_status === "COMPLETED"
+            )
+                ? "inline-block"
+                : "none";
+
+
+        // Pause running campaign
+        pauseBtn.style.display =
+            c.campaign_status === "RUNNING"
+                ? "inline-block"
+                : "none";
+
+
+        // Resume manually paused campaign only
+        resumeBtn.style.display =
+            (
+                c.campaign_status === "PAUSED" &&
+                !isFailedCanary
+            )
+                ? "inline-block"
+                : "none";
+
+
+        // Cancel active campaign
+        cancelBtn.style.display =
+            [
+                "PENDING",
+                "RUNNING",
+                "PAUSED"
+            ].includes(c.campaign_status)
+                ? "inline-block"
+                : "none";
+
+
+        // Campaign progress includes SUCCESS and FAILED
+        // because both statuses mean processing has completed.
+        let campaignProgress = 0;
+
+        if (c.total_devices > 0) {
+            campaignProgress = Math.round(
+                (
+                    (
+                        c.success_count +
+                        c.failed_count
+                    ) /
+                    c.total_devices
+                ) * 100
+            );
+        }
+
+        const progressFill =
+            document.getElementById("campaignProgressFill");
+
+        progressFill.style.width =
+            campaignProgress + "%";
+
+        progressFill.innerText =
+            campaignProgress + "%";
+
+
+        // Load device rows
+        const body =
+            document.getElementById("deviceTable");
+
+        body.innerHTML = "";
+
+        data.devices.forEach(d => {
+            const cls =
+                d.update_status === "SUCCESS" ? "green" :
+                d.update_status === "FAILED" ? "red" :
+                d.update_status === "RUNNING" ? "orange" :
+                "";
+
+            let progressColor = "#3b82f6";
+
+            if (d.update_status === "SUCCESS") {
+                progressColor = "#00ff66";
+            }
+
+            if (d.update_status === "FAILED") {
+                progressColor = "#ef4444";
+            }
+
+            if (d.update_status === "PENDING") {
+                progressColor = "#facc15";
+            }
+
+            body.innerHTML += `
+                <tr>
+                    <td>
+                        <a
+                            href="/iot_device_details_page/${d.device_id}"
+                            class="btn"
+                        >
+                            ${d.device_name}
+                        </a>
+                    </td>
+
+                    <td>${d.device_eui}</td>
+                    <td>${d.current_version}</td>
+                    <td>${d.target_version}</td>
+
+                    <td class="${cls}">
+                        ${d.update_status}
+                    </td>
+
+                    <td>
+                        <div class="progressBox">
+                            <div
+                                class="progressFill"
+                                style="
+                                    width:${d.progress}%;
+                                    background:${progressColor};
+                                "
+                            >
+                                ${d.progress}%
+                            </div>
+                        </div>
+                    </td>
+
+                    <td>${d.requested_at}</td>
+                    <td>${d.completed_at}</td>
+                    <td>${d.error_message}</td>
+                </tr>
+            `;
+        });
+
+    } catch (error) {
+        console.error(
+            "Failed to load campaign details:",
+            error
+        );
+    }
+}
+
+
+
+loadCampaignDetails();
+setInterval(loadCampaignDetails, 10000);
+</script>
+
+</body>
+</html>

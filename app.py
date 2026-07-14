@@ -52,6 +52,1540 @@ threading.Thread(target=mqtt_listener, daemon=True).start()
 
 
 
+
+@app.route("/request_firmware_rollback/<int:device_id>", methods=["POST"])
+def request_firmware_rollback(device_id):
+
+    data = request.get_json(silent=True) or {}
+
+    rollback_reason = (
+        data.get("rollback_reason")
+        or "Manual firmware recovery"
+    ).strip()
+
+    requested_by = (
+        data.get("requested_by")
+        or "Admin"
+    ).strip()
+
+    rollback_version = data.get("rollback_version")
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    try:
+        ####################################################
+        # Get the device
+        ####################################################
+
+        cur.execute("""
+            SELECT
+                id,
+                device_name,
+                device_type,
+                firmware_version
+            FROM iot_devices
+            WHERE id=%s
+        """, (device_id,))
+
+        device = cur.fetchone()
+
+        if not device:
+            return jsonify({
+                "success": False,
+                "message": "Device not found"
+            }), 404
+
+        device_name = device[1]
+        device_type = device[2]
+        current_version = device[3]
+
+        ####################################################
+        # Prevent duplicate active rollback jobs
+        ####################################################
+
+        cur.execute("""
+            SELECT id
+            FROM iot_device_firmware_updates
+            WHERE device_id=%s
+              AND update_type='ROLLBACK'
+              AND update_status IN ('PENDING','RUNNING')
+            ORDER BY id DESC
+            LIMIT 1
+        """, (device_id,))
+
+        active_rollback = cur.fetchone()
+
+        if active_rollback:
+            return jsonify({
+                "success": False,
+                "message": (
+                    "This device already has an active rollback job"
+                )
+            }), 400
+
+        ####################################################
+        # Select rollback target
+        ####################################################
+
+        if rollback_version:
+
+            cur.execute("""
+                SELECT
+                    id,
+                    version
+                FROM iot_firmware_repository
+                WHERE device_type=%s
+                  AND version=%s
+                  AND approval_status='APPROVED'
+                  AND is_known_good=TRUE
+                  AND is_active=TRUE
+            """, (
+                device_type,
+                rollback_version
+            ))
+
+        else:
+
+            cur.execute("""
+                SELECT
+                    id,
+                    version
+                FROM iot_firmware_repository
+                WHERE device_type=%s
+                  AND approval_status='APPROVED'
+                  AND is_known_good=TRUE
+                  AND is_active=TRUE
+                  AND version<>%s
+                ORDER BY marked_good_at DESC NULLS LAST, id DESC
+                LIMIT 1
+            """, (
+                device_type,
+                current_version
+            ))
+
+        target_firmware = cur.fetchone()
+
+        if not target_firmware:
+            return jsonify({
+                "success": False,
+                "message": (
+                    "No active approved known-good firmware "
+                    "is available for this device"
+                )
+            }), 400
+
+        target_version = target_firmware[1]
+
+        if target_version == current_version:
+            return jsonify({
+                "success": False,
+                "message": (
+                    "Device is already running the selected "
+                    "rollback version"
+                )
+            }), 400
+
+        ####################################################
+        # Find the update that installed current firmware
+        ####################################################
+
+        cur.execute("""
+            SELECT id
+            FROM iot_device_firmware_updates
+            WHERE device_id=%s
+              AND target_version=%s
+              AND update_status='SUCCESS'
+            ORDER BY id DESC
+            LIMIT 1
+        """, (
+            device_id,
+            current_version
+        ))
+
+        source_update = cur.fetchone()
+
+        source_update_id = (
+            source_update[0]
+            if source_update
+            else None
+        )
+
+        ####################################################
+        # Create rollback OTA job
+        ####################################################
+
+        cur.execute("""
+            INSERT INTO iot_device_firmware_updates
+            (
+                device_id,
+                current_version,
+                target_version,
+                update_status,
+                progress,
+                requested_by,
+                update_type,
+                is_canary
+            )
+            VALUES
+            (
+                %s,
+                %s,
+                %s,
+                'PENDING',
+                0,
+                %s,
+                'ROLLBACK',
+                FALSE
+            )
+            RETURNING id
+        """, (
+            device_id,
+            current_version,
+            target_version,
+            requested_by
+        ))
+
+        rollback_update_id = cur.fetchone()[0]
+
+        ####################################################
+        # Create rollback history record
+        ####################################################
+
+        cur.execute("""
+            INSERT INTO iot_firmware_rollbacks
+            (
+                device_id,
+                source_update_id,
+                rollback_update_id,
+                from_version,
+                rollback_version,
+                rollback_status,
+                rollback_reason,
+                requested_by
+            )
+            VALUES
+            (
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                'PENDING',
+                %s,
+                %s
+            )
+            RETURNING id
+        """, (
+            device_id,
+            source_update_id,
+            rollback_update_id,
+            current_version,
+            target_version,
+            rollback_reason,
+            requested_by
+        ))
+
+        rollback_id = cur.fetchone()[0]
+
+        conn.commit()
+
+        socketio.emit(
+            "firmware_update",
+            {
+                "device_id": device_id,
+                "update_id": rollback_update_id,
+                "update_type": "ROLLBACK"
+            }
+        )
+
+        return jsonify({
+            "success": True,
+            "message": (
+                f"Rollback requested for {device_name}: "
+                f"{current_version} → {target_version}"
+            ),
+            "rollback_id": rollback_id,
+            "rollback_update_id": rollback_update_id,
+            "from_version": current_version,
+            "rollback_version": target_version
+        }), 201
+
+    except Exception as e:
+        conn.rollback()
+
+        print("Firmware rollback request error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Could not create firmware rollback"
+        }), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
+
+
+@app.route(
+    "/retry_canary_campaign/<int:campaign_id>",
+    methods=["POST"]
+)
+def retry_canary_campaign(campaign_id):
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    try:
+        # Get campaign state
+        cur.execute("""
+            SELECT
+                campaign_status,
+                canary_status,
+                target_version
+            FROM iot_firmware_campaigns
+            WHERE id=%s
+        """, (
+            campaign_id,
+        ))
+
+        campaign = cur.fetchone()
+
+        if not campaign:
+            return jsonify({
+                "success": False,
+                "message": "Campaign not found"
+            }), 404
+
+        campaign_status = campaign[0]
+        canary_status = campaign[1]
+        target_version = campaign[2]
+
+        if (
+            campaign_status != "PAUSED"
+            or canary_status != "CANARY_FAILED"
+        ):
+            return jsonify({
+                "success": False,
+                "message": (
+                    "Only a failed and paused Canary campaign "
+                    "can retry its Canary devices"
+                )
+            }), 400
+
+        # Find the latest failed attempt for each Canary device
+        cur.execute("""
+            SELECT
+                latest.device_id
+            FROM (
+                SELECT DISTINCT ON (device_id)
+                    device_id,
+                    update_status,
+                    id
+                FROM iot_device_firmware_updates
+                WHERE campaign_id=%s
+                  AND is_canary=TRUE
+                ORDER BY device_id, id DESC
+            ) AS latest
+            WHERE latest.update_status='FAILED'
+        """, (
+            campaign_id,
+        ))
+
+        failed_canary_devices = cur.fetchall()
+
+        if not failed_canary_devices:
+            return jsonify({
+                "success": False,
+                "message": "No failed Canary devices found"
+            }), 400
+
+        retry_count = 0
+
+        for row in failed_canary_devices:
+            device_id = row[0]
+
+            cur.execute("""
+                SELECT firmware_version
+                FROM iot_devices
+                WHERE id=%s
+            """, (
+                device_id,
+            ))
+
+            device = cur.fetchone()
+
+            if not device:
+                continue
+
+            current_version = device[0]
+
+            cur.execute("""
+                INSERT INTO iot_device_firmware_updates
+                (
+                    device_id,
+                    current_version,
+                    target_version,
+                    update_status,
+                    progress,
+                    requested_by,
+                    campaign_id,
+                    is_canary
+                )
+                VALUES
+                (
+                    %s,%s,%s,
+                    'PENDING',
+                    0,
+                    'Canary Retry',
+                    %s,
+                    TRUE
+                )
+            """, (
+                device_id,
+                current_version,
+                target_version,
+                campaign_id
+            ))
+
+            retry_count += 1
+
+        if retry_count == 0:
+            conn.rollback()
+
+            return jsonify({
+                "success": False,
+                "message": "No Canary retry jobs were created"
+            }), 400
+
+        cur.execute("""
+            UPDATE iot_firmware_campaigns
+            SET
+                campaign_status='RUNNING',
+                canary_status='CANARY_RETRYING',
+                pending_count=%s,
+                running_count=0,
+                failed_count=0,
+                completed_at=NULL
+            WHERE id=%s
+        """, (
+            retry_count,
+            campaign_id
+        ))
+
+        conn.commit()
+
+        socketio.emit(
+            "firmware_campaign_update",
+            {"campaign_id": campaign_id}
+        )
+
+        return jsonify({
+            "success": True,
+            "message": (
+                f"{retry_count} Canary retry job(s) created."
+            )
+        })
+
+    except Exception as e:
+        conn.rollback()
+
+        print("Retry Canary campaign error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Could not retry Canary devices"
+        }), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
+
+
+
+
+
+@app.route(
+    "/archive_firmware/<int:firmware_id>",
+    methods=["POST"]
+)
+def archive_firmware(firmware_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            UPDATE iot_firmware_repository
+            SET
+                approval_status='ARCHIVED',
+                is_active=FALSE
+            WHERE id=%s
+        """, (firmware_id,))
+
+        if cur.rowcount == 0:
+            conn.rollback()
+
+            return jsonify({
+                "success": False,
+                "message": "Firmware not found"
+            }), 404
+
+        conn.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Firmware archived"
+        })
+
+    except Exception as e:
+        conn.rollback()
+        print("Archive firmware error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Could not archive firmware"
+        }), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
+
+
+
+
+@app.route(
+    "/reject_firmware/<int:firmware_id>",
+    methods=["POST"]
+)
+def reject_firmware(firmware_id):
+    data = request.get_json(silent=True) or {}
+    reason = data.get("reason", "").strip()
+
+    if not reason:
+        return jsonify({
+            "success": False,
+            "message": "Rejection reason is required"
+        }), 400
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            UPDATE iot_firmware_repository
+            SET
+                approval_status='REJECTED',
+                rejection_reason=%s,
+                approved_by=NULL,
+                approved_at=NULL
+            WHERE id=%s
+              AND approval_status IN ('DRAFT','TESTING')
+        """, (
+            reason,
+            firmware_id
+        ))
+
+        if cur.rowcount == 0:
+            conn.rollback()
+
+            return jsonify({
+                "success": False,
+                "message": "Firmware cannot be rejected"
+            }), 400
+
+        conn.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Firmware rejected"
+        })
+
+    except Exception as e:
+        conn.rollback()
+        print("Reject firmware error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Could not reject firmware"
+        }), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
+
+
+
+
+@app.route(
+    "/mark_firmware_testing/<int:firmware_id>",
+    methods=["POST"]
+)
+def mark_firmware_testing(firmware_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            UPDATE iot_firmware_repository
+            SET approval_status='TESTING'
+            WHERE id=%s
+              AND approval_status IN ('DRAFT','REJECTED')
+        """, (firmware_id,))
+
+        if cur.rowcount == 0:
+            conn.rollback()
+
+            return jsonify({
+                "success": False,
+                "message": "Firmware cannot be moved to testing"
+            }), 400
+
+        conn.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Firmware moved to testing"
+        })
+
+    except Exception as e:
+        conn.rollback()
+        print("Testing firmware error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Could not update firmware status"
+        }), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
+
+
+
+@app.route(
+    "/approve_firmware/<int:firmware_id>",
+    methods=["POST"]
+)
+def approve_firmware(firmware_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            SELECT id, approval_status
+            FROM iot_firmware_repository
+            WHERE id=%s
+        """, (firmware_id,))
+
+        firmware = cur.fetchone()
+
+        if not firmware:
+            return jsonify({
+                "success": False,
+                "message": "Firmware not found"
+            }), 404
+
+        current_status = firmware[1]
+
+        if current_status == "ARCHIVED":
+            return jsonify({
+                "success": False,
+                "message": "Archived firmware cannot be approved"
+            }), 400
+
+        cur.execute("""
+            UPDATE iot_firmware_repository
+            SET
+                approval_status='APPROVED',
+                approved_by='Admin',
+                approved_at=CURRENT_TIMESTAMP,
+                rejection_reason=NULL
+            WHERE id=%s
+        """, (firmware_id,))
+
+        conn.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Firmware approved successfully"
+        })
+
+    except Exception as e:
+        conn.rollback()
+        print("Approve firmware error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Could not approve firmware"
+        }), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
+
+
+
+@app.route("/cancel_campaign/<int:campaign_id>", methods=["POST"])
+def cancel_campaign(campaign_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            SELECT campaign_status
+            FROM iot_firmware_campaigns
+            WHERE id=%s
+        """, (campaign_id,))
+
+        campaign = cur.fetchone()
+
+        if not campaign:
+            return jsonify({
+                "success": False,
+                "message": "Campaign not found"
+            }), 404
+
+        current_status = campaign[0]
+
+        if current_status not in ("PENDING", "RUNNING", "PAUSED"):
+            return jsonify({
+                "success": False,
+                "message": (
+                    "This campaign cannot be cancelled. "
+                    f"Current status: {current_status}"
+                )
+            }), 400
+
+        cur.execute("""
+            UPDATE iot_firmware_campaigns
+            SET
+                campaign_status='CANCELLED',
+                completed_at=CURRENT_TIMESTAMP
+            WHERE id=%s
+        """, (campaign_id,))
+
+        # Prevent jobs that have not started from being processed.
+        cur.execute("""
+            UPDATE iot_device_firmware_updates
+            SET
+                update_status='CANCELLED',
+                completed_at=CURRENT_TIMESTAMP,
+                error_message='Campaign cancelled by operator'
+            WHERE campaign_id=%s
+              AND update_status='PENDING'
+        """, (campaign_id,))
+
+        cancelled_jobs = cur.rowcount
+
+        conn.commit()
+
+        socketio.emit(
+            "firmware_campaign_update",
+            {"campaign_id": campaign_id}
+        )
+
+        return jsonify({
+            "success": True,
+            "message": (
+                "Campaign cancelled successfully. "
+                f"{cancelled_jobs} pending job(s) cancelled."
+            )
+        })
+
+    except Exception as e:
+        conn.rollback()
+        print("Cancel campaign error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Could not cancel campaign"
+        }), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
+
+
+
+
+@app.route("/resume_campaign/<int:campaign_id>", methods=["POST"])
+def resume_campaign(campaign_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            SELECT campaign_status
+            FROM iot_firmware_campaigns
+            WHERE id=%s
+        """, (campaign_id,))
+
+        campaign = cur.fetchone()
+
+        if not campaign:
+            return jsonify({
+                "success": False,
+                "message": "Campaign not found"
+            }), 404
+
+        if campaign[0] != "PAUSED":
+            return jsonify({
+                "success": False,
+                "message": (
+                    "Only a PAUSED campaign can be resumed. "
+                    f"Current status: {campaign[0]}"
+                )
+            }), 400
+
+        cur.execute("""
+            UPDATE iot_firmware_campaigns
+            SET campaign_status='RUNNING'
+            WHERE id=%s
+        """, (campaign_id,))
+
+        conn.commit()
+
+        socketio.emit(
+            "firmware_campaign_update",
+            {"campaign_id": campaign_id}
+        )
+
+        return jsonify({
+            "success": True,
+            "message": "Campaign resumed successfully"
+        })
+
+    except Exception as e:
+        conn.rollback()
+        print("Resume campaign error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Could not resume campaign"
+        }), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
+
+
+
+
+@app.route("/pause_campaign/<int:campaign_id>", methods=["POST"])
+def pause_campaign(campaign_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            SELECT campaign_status
+            FROM iot_firmware_campaigns
+            WHERE id=%s
+        """, (campaign_id,))
+
+        campaign = cur.fetchone()
+
+        if not campaign:
+            return jsonify({
+                "success": False,
+                "message": "Campaign not found"
+            }), 404
+
+        current_status = campaign[0]
+
+        if current_status != "RUNNING":
+            return jsonify({
+                "success": False,
+                "message": (
+                    f"Only a RUNNING campaign can be paused. "
+                    f"Current status: {current_status}"
+                )
+            }), 400
+
+        cur.execute("""
+            UPDATE iot_firmware_campaigns
+            SET campaign_status='PAUSED'
+            WHERE id=%s
+        """, (campaign_id,))
+
+        conn.commit()
+
+        socketio.emit(
+            "firmware_campaign_update",
+            {"campaign_id": campaign_id}
+        )
+
+        return jsonify({
+            "success": True,
+            "message": "Campaign paused successfully"
+        })
+
+    except Exception as e:
+        conn.rollback()
+        print("Pause campaign error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Could not pause campaign"
+        }), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
+
+
+@app.route("/retry_failed_campaign_devices/<int:campaign_id>",methods=["POST"])
+def retry_failed_campaign_devices(campaign_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    try:
+        # Confirm that the campaign exists
+        cur.execute("""
+            SELECT id, campaign_status
+            FROM iot_firmware_campaigns
+            WHERE id=%s
+        """, (campaign_id,))
+
+        campaign = cur.fetchone()
+
+        if not campaign:
+            return jsonify({
+                "success": False,
+                "message": "Campaign not found"
+            }), 404
+
+        # Get only the latest attempt for each device,
+        # then keep only devices whose latest attempt failed.
+        cur.execute("""
+            SELECT
+                latest.device_id,
+                latest.target_version
+            FROM (
+                SELECT DISTINCT ON (device_id)
+                    device_id,
+                    target_version,
+                    update_status,
+                    id
+                FROM iot_device_firmware_updates
+                WHERE campaign_id=%s
+                ORDER BY device_id, id DESC
+            ) AS latest
+            WHERE latest.update_status='FAILED'
+        """, (campaign_id,))
+
+        failed_devices = cur.fetchall()
+
+        if not failed_devices:
+            return jsonify({
+                "success": False,
+                "message": "No failed devices available for retry"
+            }), 400
+
+        retry_count = 0
+
+        for row in failed_devices:
+            device_id = row[0]
+            target_version = row[1]
+
+            cur.execute("""
+                INSERT INTO iot_device_firmware_updates
+                (
+                    device_id,
+                    current_version,
+                    target_version,
+                    update_status,
+                    progress,
+                    requested_by,
+                    campaign_id
+                )
+                SELECT
+                    id,
+                    firmware_version,
+                    %s,
+                    'PENDING',
+                    0,
+                    'Retry',
+                    %s
+                FROM iot_devices
+                WHERE id=%s
+            """, (
+                target_version,
+                campaign_id,
+                device_id
+            ))
+
+            retry_count += cur.rowcount
+
+        # Reopen the completed campaign
+        cur.execute("""
+            UPDATE iot_firmware_campaigns
+            SET
+                campaign_status='RUNNING',
+                completed_at=NULL
+            WHERE id=%s
+        """, (campaign_id,))
+
+        conn.commit()
+
+        return jsonify({
+            "success": True,
+            "message": (
+                f"{retry_count} failed device retry job(s) created"
+            )
+        })
+
+    except Exception as e:
+        conn.rollback()
+
+        print("Retry failed devices error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Could not create retry jobs"
+        }), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
+
+
+@app.route("/schedule_firmware_update", methods=["POST"])
+def schedule_firmware_update():
+    data = request.json
+
+    firmware_id = data["firmware_id"]
+    campaign_name = data["campaign_name"]
+    scheduled_time = data["scheduled_time"]
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT device_type, version
+        FROM iot_firmware_repository
+        WHERE id=%s
+    """, (firmware_id,))
+
+    firmware = cur.fetchone()
+
+    if not firmware:
+        cur.close()
+        conn.close()
+        return jsonify({
+            "success": False,
+            "message": "Firmware not found"
+        }), 404
+
+    device_type = firmware[0]
+    target_version = firmware[1]
+
+    cur.execute("""
+        INSERT INTO iot_firmware_schedules
+        (
+            campaign_name,
+            firmware_id,
+            device_type,
+            target_version,
+            scheduled_time
+        )
+        VALUES (%s,%s,%s,%s,%s)
+    """, (
+        campaign_name,
+        firmware_id,
+        device_type,
+        target_version,
+        scheduled_time
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": "Firmware update scheduled successfully"
+    })
+
+
+
+
+
+
+@app.route("/firmware_campaign_details_page/<int:campaign_id>")
+def firmware_campaign_details_page(campaign_id):
+    return render_template(
+        "firmware_campaign_details.html",
+        campaign_id=campaign_id
+    )
+
+
+
+
+
+
+@app.route("/firmware_campaign_details/<int:campaign_id>")
+def firmware_campaign_details(campaign_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            campaign_name,
+            device_type,
+            target_version,
+            total_devices,
+            pending_count,
+            running_count,
+            success_count,
+            failed_count,
+            campaign_status,
+            created_at,
+            completed_at,
+            canary_status,
+            canary_size,
+            failure_threshold,
+            rollout_type
+        FROM iot_firmware_campaigns
+        WHERE id=%s
+    """, (campaign_id,))
+    c = cur.fetchone()
+
+    if not c:
+        cur.close()
+        conn.close()
+        return jsonify({"message": "Campaign not found"}), 404
+
+    campaign = {
+        "id": c[0],
+        "campaign_name": c[1],
+        "device_type": c[2],
+        "target_version": c[3],
+        "total_devices": c[4],
+        "pending_count": c[5],
+        "running_count": c[6],
+        "success_count": c[7],
+        "failed_count": c[8],
+        "campaign_status": c[9],
+        "created_at": str(c[10]),
+        "completed_at": str(c[11]) if c[11] else "-",
+
+        # Canary rollout information
+        "canary_status": c[12],
+        "canary_size": c[13],
+        "failure_threshold": (
+            float(c[14])
+            if c[14] is not None
+            else None
+        ),
+
+        "rollout_type": c[15]
+    }
+    
+    
+    cur.execute("""
+        SELECT
+            d.id,
+            d.device_name,
+            d.device_eui,
+            f.current_version,
+            f.target_version,
+            f.update_status,
+            f.progress,
+            f.requested_at,
+            f.started_at,
+            f.completed_at,
+            f.error_message
+        FROM (
+            SELECT DISTINCT ON (device_id)
+                id,
+                device_id,
+                current_version,
+                target_version,
+                update_status,
+                progress,
+                requested_at,
+                started_at,
+                completed_at,
+                error_message
+            FROM iot_device_firmware_updates
+            WHERE campaign_id=%s
+            ORDER BY device_id, id DESC
+        ) AS f
+        JOIN iot_devices d
+            ON d.id = f.device_id
+        ORDER BY d.id
+    """, (campaign_id,))
+
+    devices = []
+
+    for r in cur.fetchall():
+        devices.append({
+            "device_id": r[0],
+            "device_name": r[1],
+            "device_eui": r[2],
+            "current_version": r[3],
+            "target_version": r[4],
+            "update_status": r[5],
+            "progress": r[6],
+            "requested_at": str(r[7]),
+            "started_at": str(r[8]) if r[8] else "-",
+            "completed_at": str(r[9]) if r[9] else "-",
+            "error_message": r[10] if r[10] else "-"
+        })
+
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "campaign": campaign,
+        "devices": devices
+    })
+
+
+
+
+
+
+
+@app.route("/emit_firmware_campaign_update", methods=["POST"])
+def emit_firmware_campaign_update():
+    socketio.emit("firmware_campaign_update", {})
+    return jsonify({"success": True})
+
+
+
+@app.route("/firmware_campaign_dashboard")
+def firmware_campaign_dashboard():
+    return render_template("firmware_campaign_dashboard.html")
+
+
+
+
+@app.route("/firmware_campaigns")
+def firmware_campaigns():
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            campaign_name,
+            device_type,
+            target_version,
+            total_devices,
+            pending_count,
+            running_count,
+            success_count,
+            failed_count,
+            campaign_status,
+            created_by,
+            created_at,
+            completed_at
+        FROM iot_firmware_campaigns
+        ORDER BY id DESC
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "campaign_name": r[1],
+            "device_type": r[2],
+            "target_version": r[3],
+            "total_devices": r[4],
+            "pending_count": r[5],
+            "running_count": r[6],
+            "success_count": r[7],
+            "failed_count": r[8],
+            "campaign_status": r[9],
+            "created_by": r[10],
+            "created_at": str(r[11]),
+            "completed_at": str(r[12]) if r[12] else "-"
+        }
+        for r in rows
+    ])
+
+
+
+
+@app.route("/create_firmware_campaign", methods=["POST"])
+def create_firmware_campaign():
+
+    data = request.json
+
+    firmware_id = data["firmware_id"]
+    campaign_name = data["campaign_name"]
+
+    rollout_type = str(
+        data.get("rollout_type", "IMMEDIATE")
+    ).strip().upper()
+    batch_size = data.get("batch_size")
+    rollout_percentage = data.get("rollout_percentage")
+    canary_size = data.get("canary_size")
+    failure_threshold = data.get("failure_threshold")
+    
+    valid_rollout_types = {
+        "IMMEDIATE",
+        "BATCH",
+        "PERCENTAGE",
+        "CANARY"
+    }
+
+    if rollout_type not in valid_rollout_types:
+        return jsonify({
+            "success": False,
+            "message": "Invalid rollout type"
+        }), 400
+    
+    
+    
+    if rollout_type == "CANARY":
+        if not canary_size or int(canary_size) < 1:
+            return jsonify({
+                "success": False,
+                "message": "Canary size must be at least 1"
+            }), 400
+
+        if failure_threshold is None:
+            return jsonify({
+                "success": False,
+                "message": "Failure threshold is required"
+            }), 400
+
+        failure_threshold = float(failure_threshold)
+
+        if failure_threshold < 0 or failure_threshold > 100:
+            return jsonify({
+                "success": False,
+                "message": "Failure threshold must be between 0 and 100"
+            }), 400
+
+
+
+    
+    
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    # Get firmware information
+    cur.execute("""
+        SELECT
+            id,
+            version,
+            device_type,
+            approval_status
+        FROM iot_firmware_repository
+        WHERE id=%s
+    """, (firmware_id,))
+
+    firmware = cur.fetchone()
+
+    if not firmware:
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            "success": False,
+            "message": "Firmware not found"
+        }), 404
+
+    target_version = firmware[1]
+    device_type = firmware[2]
+    approval_status = firmware[3]
+
+    if approval_status != "APPROVED":
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            "success": False,
+            "message": (
+                "Only APPROVED firmware can be used "
+                "to create a campaign"
+            )
+        }), 400
+
+    # Count matching devices
+    cur.execute("""
+        SELECT COUNT(*)
+        FROM iot_devices
+        WHERE device_type=%s
+    """, (device_type,))
+
+    total = cur.fetchone()[0]
+
+    # Create campaign
+    cur.execute("""
+        INSERT INTO iot_firmware_campaigns
+        (
+            firmware_id,
+            campaign_name,
+            device_type,
+            target_version,
+            total_devices,
+            pending_count,
+            rollout_type,
+            batch_size,
+            rollout_percentage,
+            canary_size,
+            failure_threshold,
+            canary_status
+        )
+        VALUES
+        (
+            %s,%s,%s,%s,%s,%s,
+            %s,%s,%s,%s,%s,%s
+        )
+    """, (
+        firmware_id,
+        campaign_name,
+        device_type,
+        target_version,
+        total,
+        total,
+        rollout_type,
+        batch_size,
+        rollout_percentage,
+        canary_size,
+        failure_threshold,
+        "NOT_STARTED"
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": "Campaign created successfully"
+    })
+
+
+
+@app.route("/devices_by_type/<path:device_type>")
+def devices_by_type(device_type):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT id, device_name, device_eui, firmware_version, status
+        FROM iot_devices
+        WHERE device_type=%s
+        ORDER BY device_name
+    """, (device_type,))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "device_name": r[1],
+            "device_eui": r[2],
+            "firmware_version": r[3],
+            "status": r[4]
+        }
+        for r in rows
+    ])
+
+
+
+
+@app.route("/deploy_repository_firmware", methods=["POST"])
+def deploy_repository_firmware():
+    data = request.json
+
+    firmware_id = data["firmware_id"]
+    device_id = data["device_id"]
+
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT version
+        FROM iot_firmware_repository
+        WHERE id=%s
+          AND is_active=TRUE
+    """, (firmware_id,))
+
+    fw = cur.fetchone()
+
+    if not fw:
+        cur.close()
+        conn.close()
+        return jsonify({
+            "success": False,
+            "message": "Firmware not found or inactive"
+        }), 404
+
+    target_version = fw[0]
+
+    cur.execute("""
+        SELECT firmware_version
+        FROM iot_devices
+        WHERE id=%s
+    """, (device_id,))
+
+    device = cur.fetchone()
+
+    if not device:
+        cur.close()
+        conn.close()
+        return jsonify({
+            "success": False,
+            "message": "Device not found"
+        }), 404
+
+    current_version = device[0]
+
+    cur.execute("""
+        INSERT INTO iot_device_firmware_updates
+        (
+            device_id,
+            current_version,
+            target_version,
+            update_status,
+            progress,
+            requested_by
+        )
+        VALUES (%s, %s, %s, 'PENDING', 0, 'Admin')
+    """, (
+        device_id,
+        current_version,
+        target_version
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": "Firmware deployment job created"
+    })
+
+
+
+
+
 @app.route("/firmware_repository_page")
 def firmware_repository_page():
     return render_template("firmware_repository.html")
@@ -63,6 +1597,12 @@ def firmware_repository_page():
 def upload_firmware_metadata():
 
     data = request.json
+    version = data["version"]
+    device_type = data["device_type"]
+    filename = data["filename"]
+    filesize = data["filesize"]
+    checksum = data["checksum"]
+    release_notes = data["release_notes"]
 
     conn = get_pg_connection()
     cur = conn.cursor()
@@ -75,16 +1615,20 @@ def upload_firmware_metadata():
             filename,
             filesize,
             checksum,
-            release_notes
+            release_notes,
+            uploaded_by,
+            is_active,
+            approval_status
         )
-        VALUES (%s,%s,%s,%s,%s,%s)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,TRUE,'DRAFT')
     """, (
-        data["version"],
-        data["device_type"],
-        data["filename"],
-        data["filesize"],
-        data["checksum"],
-        data["release_notes"]
+        version,
+        device_type,
+        filename,
+        filesize,
+        checksum,
+        release_notes,
+        "Admin"
     ))
 
     conn.commit()
@@ -151,7 +1695,11 @@ def firmware_repository():
             release_notes,
             uploaded_by,
             uploaded_at,
-            is_active
+            is_active,
+            approval_status,
+            approved_by,
+            approved_at,
+            rejection_reason
         FROM iot_firmware_repository
         ORDER BY device_type, version DESC
     """)
@@ -171,7 +1719,11 @@ def firmware_repository():
             "release_notes": row[6],
             "uploaded_by": row[7],
             "uploaded_at": str(row[8]),
-            "is_active": row[9]
+            "is_active": row[9],
+            "approval_status": row[10],
+            "approved_by": row[11],
+            "approved_at": str(row[12]) if row[12] else "-",
+            "rejection_reason": row[13] if row[13] else "-"
         })
 
     cur.close()
