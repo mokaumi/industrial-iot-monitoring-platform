@@ -52,6 +52,137 @@ threading.Thread(target=mqtt_listener, daemon=True).start()
 
 
 
+@app.route("/device_rollback_history/<int:device_id>")
+def device_rollback_history(device_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            SELECT
+                id,
+                from_version,
+                rollback_version,
+                rollback_status,
+                rollback_reason,
+                requested_by,
+                requested_at,
+                started_at,
+                completed_at,
+                error_message
+            FROM iot_firmware_rollbacks
+            WHERE device_id=%s
+            ORDER BY id DESC
+        """, (device_id,))
+
+        history = []
+
+        for row in cur.fetchall():
+            history.append({
+                "id": row[0],
+                "from_version": row[1],
+                "rollback_version": row[2],
+                "rollback_status": row[3],
+                "rollback_reason": row[4] or "-",
+                "requested_by": row[5] or "-",
+                "requested_at": str(row[6]) if row[6] else "-",
+                "started_at": str(row[7]) if row[7] else "-",
+                "completed_at": str(row[8]) if row[8] else "-",
+                "error_message": row[9] or "-"
+            })
+
+        return jsonify(history)
+
+    except Exception as e:
+        print("Rollback history error:", e)
+
+        return jsonify({
+            "message": "Could not load rollback history"
+        }), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
+
+
+
+
+
+
+
+@app.route("/device_rollback_options/<int:device_id>")
+def device_rollback_options(device_id):
+    conn = get_pg_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            SELECT
+                device_type,
+                firmware_version
+            FROM iot_devices
+            WHERE id=%s
+        """, (device_id,))
+
+        device = cur.fetchone()
+
+        if not device:
+            return jsonify({
+                "success": False,
+                "message": "Device not found"
+            }), 404
+
+        device_type = device[0]
+        current_version = device[1]
+
+        cur.execute("""
+            SELECT
+                id,
+                version
+            FROM iot_firmware_repository
+            WHERE device_type=%s
+              AND approval_status='APPROVED'
+              AND is_known_good=TRUE
+              AND is_active=TRUE
+              AND version<>%s
+            ORDER BY marked_good_at DESC NULLS LAST, id DESC
+        """, (
+            device_type,
+            current_version
+        ))
+
+        options = []
+
+        for row in cur.fetchall():
+            options.append({
+                "firmware_id": row[0],
+                "version": row[1]
+            })
+
+        return jsonify({
+            "success": True,
+            "current_version": current_version,
+            "options": options
+        })
+
+    except Exception as e:
+        print("Rollback options error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Could not load rollback options"
+        }), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
+
+
+
+
+
 
 @app.route("/request_firmware_rollback/<int:device_id>", methods=["POST"])
 def request_firmware_rollback(device_id):
