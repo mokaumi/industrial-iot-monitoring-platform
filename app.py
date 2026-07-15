@@ -1899,7 +1899,8 @@ def iot_device_firmware_updates(device_id):
             requested_at,
             started_at,
             completed_at,
-            error_message
+            error_message,
+            update_type
         FROM iot_device_firmware_updates
         WHERE device_id=%s
         ORDER BY id DESC
@@ -1922,7 +1923,8 @@ def iot_device_firmware_updates(device_id):
             "requested_at": str(r[6]),
             "started_at": str(r[7]) if r[7] else "-",
             "completed_at": str(r[8]) if r[8] else "-",
-            "error_message": r[9] if r[9] else "-"
+            "error_message": r[9] if r[9] else "-",
+            "update_type": r[10] or "FIRMWARE_UPDATE"
         }
         for r in rows
     ])

@@ -5,3 +5,4 @@ __pycache__/
 *.log
 openvpn-status.log
 iot.db
+app_RECOVERED_*.py
